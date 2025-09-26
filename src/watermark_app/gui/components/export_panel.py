@@ -70,48 +70,56 @@ class ExportPanel(ttk.LabelFrame):
             width=8
         ).pack(side=tk.RIGHT)
         
-        # 文件命名规则
-        naming_frame = ttk.LabelFrame(self, text="文件命名", padding=5)
-        naming_frame.pack(fill=tk.X, pady=(0, 10))
+        # 创建并排的框架用于文件命名和尺寸调整
+        settings_row_frame = ttk.Frame(self)
+        settings_row_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # 文件命名规则 - 左侧
+        naming_frame = ttk.LabelFrame(settings_row_frame, text="文件命名", padding=5)
+        naming_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         
         ttk.Radiobutton(
             naming_frame,
             text="保留原文件名",
             variable=self.naming_rule,
             value="original"
-        ).grid(row=0, column=0, sticky=tk.W, pady=2)
+        ).grid(row=0, column=0, sticky=tk.W, pady=1)
         
         ttk.Radiobutton(
             naming_frame,
             text="添加前缀:",
             variable=self.naming_rule,
             value="prefix"
-        ).grid(row=1, column=0, sticky=tk.W, pady=2)
+        ).grid(row=1, column=0, sticky=tk.W, pady=1)
         
         ttk.Entry(
             naming_frame,
             textvariable=self.custom_prefix,
-            width=15
-        ).grid(row=1, column=1, sticky=tk.W, padx=(5, 0), pady=2)
+            width=12
+        ).grid(row=1, column=1, sticky=tk.W, padx=(5, 0), pady=1)
         
         ttk.Radiobutton(
             naming_frame,
             text="添加后缀:",
             variable=self.naming_rule,
             value="suffix"
-        ).grid(row=2, column=0, sticky=tk.W, pady=2)
+        ).grid(row=2, column=0, sticky=tk.W, pady=1)
         
         ttk.Entry(
             naming_frame,
             textvariable=self.custom_suffix,
-            width=15
-        ).grid(row=2, column=1, sticky=tk.W, padx=(5, 0), pady=2)
+            width=12
+        ).grid(row=2, column=1, sticky=tk.W, padx=(5, 0), pady=1)
         
-        # JPEG质量设置
-        self.quality_frame = ttk.LabelFrame(self, text="JPEG质量", padding=5)
-        self.quality_frame.pack(fill=tk.X, pady=(0, 10))
+        # 尺寸调整设置 - 右侧
+        resize_frame = ttk.LabelFrame(settings_row_frame, text="尺寸调整", padding=5)
+        resize_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         
-        ttk.Label(self.quality_frame, text="压缩质量:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        # JPEG质量设置 - 单独一行，更紧凑
+        self.quality_frame = ttk.LabelFrame(self, text="JPEG质量", padding=3)
+        self.quality_frame.pack(fill=tk.X, pady=(0, 8))
+        
+        ttk.Label(self.quality_frame, text="压缩质量:").grid(row=0, column=0, sticky=tk.W, pady=1)
         
         quality_scale = ttk.Scale(
             self.quality_frame,
@@ -120,10 +128,10 @@ class ExportPanel(ttk.LabelFrame):
             variable=self.jpeg_quality,
             orient=tk.HORIZONTAL
         )
-        quality_scale.grid(row=0, column=1, sticky=tk.EW, pady=2, padx=(5, 0))
+        quality_scale.grid(row=0, column=1, sticky=tk.EW, pady=1, padx=(5, 0))
         
         self.quality_label = ttk.Label(self.quality_frame, text="95%")
-        self.quality_label.grid(row=0, column=2, pady=2, padx=(5, 0))
+        self.quality_label.grid(row=0, column=2, pady=1, padx=(5, 0))
         
         # 绑定质量显示更新
         def update_quality_label(*args):
@@ -132,51 +140,47 @@ class ExportPanel(ttk.LabelFrame):
         
         self.quality_frame.columnconfigure(1, weight=1)
         
-        # 尺寸调整设置
-        resize_frame = ttk.LabelFrame(self, text="尺寸调整", padding=5)
-        resize_frame.pack(fill=tk.X, pady=(0, 10))
-        
         ttk.Checkbutton(
             resize_frame,
             text="启用尺寸调整",
             variable=self.resize_enabled,
             command=self.on_resize_toggle
-        ).grid(row=0, column=0, columnspan=3, sticky=tk.W, pady=2)
+        ).grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=1)
         
-        ttk.Label(resize_frame, text="调整模式:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Label(resize_frame, text="模式:").grid(row=1, column=0, sticky=tk.W, pady=1)
         
         mode_combo = ttk.Combobox(
             resize_frame,
             textvariable=self.resize_mode,
             values=["width", "height", "both"],
             state="readonly",
-            width=10
+            width=8
         )
-        mode_combo.grid(row=1, column=1, sticky=tk.W, pady=2, padx=(5, 0))
+        mode_combo.grid(row=1, column=1, sticky=tk.W, pady=1, padx=(5, 0))
         
-        ttk.Label(resize_frame, text="宽度:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        ttk.Label(resize_frame, text="宽度:").grid(row=2, column=0, sticky=tk.W, pady=1)
         self.width_spinbox = ttk.Spinbox(
             resize_frame,
             from_=100,
             to=10000,
             textvariable=self.resize_width,
-            width=10
+            width=8
         )
-        self.width_spinbox.grid(row=2, column=1, sticky=tk.W, pady=2, padx=(5, 0))
+        self.width_spinbox.grid(row=2, column=1, sticky=tk.W, pady=1, padx=(5, 0))
         
-        ttk.Label(resize_frame, text="高度:").grid(row=3, column=0, sticky=tk.W, pady=2)
+        ttk.Label(resize_frame, text="高度:").grid(row=3, column=0, sticky=tk.W, pady=1)
         self.height_spinbox = ttk.Spinbox(
             resize_frame,
             from_=100,
             to=10000,
             textvariable=self.resize_height,
-            width=10
+            width=8
         )
-        self.height_spinbox.grid(row=3, column=1, sticky=tk.W, pady=2, padx=(5, 0))
+        self.height_spinbox.grid(row=3, column=1, sticky=tk.W, pady=1, padx=(5, 0))
         
-        # 导出按钮
+        # 导出按钮和进度条 - 更紧凑的布局
         export_frame = ttk.Frame(self)
-        export_frame.pack(fill=tk.X, pady=(10, 0))
+        export_frame.pack(fill=tk.X, pady=(8, 0))
         
         self.export_button = ttk.Button(
             export_frame,

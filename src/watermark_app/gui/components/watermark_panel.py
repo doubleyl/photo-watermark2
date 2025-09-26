@@ -25,6 +25,7 @@ class WatermarkPanel(ttk.LabelFrame):
         self.watermark_type = tk.StringVar(value="text")
         self.text_content = tk.StringVar(value="水印")
         self.font_size = tk.IntVar(value=36)
+        self.font_family = tk.StringVar(value="苹方 (PingFang SC)")  # 默认中文字体
         self.text_color = tk.StringVar(value="#FFFFFF")
         self.opacity = tk.IntVar(value=80)
         self.position = tk.StringVar(value="bottom_right")
@@ -32,6 +33,11 @@ class WatermarkPanel(ttk.LabelFrame):
         self.image_scale = tk.DoubleVar(value=0.2)
         self.offset_x = tk.IntVar(value=0)
         self.offset_y = tk.IntVar(value=0)
+        
+        # 获取可用字体
+        from ...core import WatermarkManager
+        self.watermark_manager = WatermarkManager()
+        self.available_fonts = self.watermark_manager.get_available_fonts()
         
         self.setup_ui()
         self.setup_bindings()
@@ -117,8 +123,20 @@ class WatermarkPanel(ttk.LabelFrame):
         text_entry = ttk.Entry(self.text_frame, textvariable=self.text_content, width=20)
         text_entry.grid(row=0, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=(5, 0))
         
+        # 字体选择
+        ttk.Label(self.text_frame, text="字体:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        font_combo = ttk.Combobox(
+            self.text_frame,
+            textvariable=self.font_family,
+            values=list(self.available_fonts.keys()),
+            state="readonly",
+            width=18
+        )
+        font_combo.grid(row=1, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=(5, 0))
+        font_combo.bind('<<ComboboxSelected>>', self.on_setting_change)
+        
         # 字体大小
-        ttk.Label(self.text_frame, text="字体大小:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.text_frame, text="字体大小:").grid(row=2, column=0, sticky=tk.W, pady=2)
         font_scale = ttk.Scale(
             self.text_frame,
             from_=12,
@@ -127,10 +145,10 @@ class WatermarkPanel(ttk.LabelFrame):
             orient=tk.HORIZONTAL,
             command=self.on_setting_change
         )
-        font_scale.grid(row=1, column=1, sticky=tk.EW, pady=2, padx=(5, 0))
+        font_scale.grid(row=2, column=1, sticky=tk.EW, pady=2, padx=(5, 0))
         
         font_label = ttk.Label(self.text_frame, text="36")
-        font_label.grid(row=1, column=2, pady=2, padx=(5, 0))
+        font_label.grid(row=2, column=2, pady=2, padx=(5, 0))
         
         # 绑定字体大小显示更新
         def update_font_label(*args):
@@ -138,10 +156,10 @@ class WatermarkPanel(ttk.LabelFrame):
         self.font_size.trace('w', update_font_label)
         
         # 文本颜色
-        ttk.Label(self.text_frame, text="文本颜色:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.text_frame, text="文本颜色:").grid(row=3, column=0, sticky=tk.W, pady=2)
         
         color_frame = ttk.Frame(self.text_frame)
-        color_frame.grid(row=2, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=(5, 0))
+        color_frame.grid(row=3, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=(5, 0))
         
         self.color_button = tk.Button(
             color_frame,
@@ -352,11 +370,17 @@ class WatermarkPanel(ttk.LabelFrame):
     
     def get_settings(self) -> Dict[str, Any]:
         """获取当前水印设置"""
+        # 获取选中字体的路径
+        font_name = self.font_family.get()
+        font_path = self.available_fonts.get(font_name, "default")
+        
         return {
             'enabled': self.watermark_enabled.get(),
             'type': self.watermark_type.get(),
             'text': self.text_content.get(),
             'font_size': self.font_size.get(),
+            'font_family': font_name,
+            'font_path': font_path,
             'color': self.text_color.get(),
             'opacity': self.opacity.get(),
             'position': self.position.get(),
@@ -372,6 +396,7 @@ class WatermarkPanel(ttk.LabelFrame):
         self.watermark_type.set(settings.get('type', 'text'))
         self.text_content.set(settings.get('text', '水印'))
         self.font_size.set(settings.get('font_size', 36))
+        self.font_family.set(settings.get('font_family', '苹方 (PingFang SC)'))
         self.text_color.set(settings.get('color', '#FFFFFF'))
         self.opacity.set(settings.get('opacity', 80))
         self.position.set(settings.get('position', 'bottom_right'))

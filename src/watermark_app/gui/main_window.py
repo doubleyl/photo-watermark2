@@ -92,9 +92,9 @@ class WatermarkApp:
         self.image_list_panel.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         self.watermark_panel.pack(fill=tk.X, pady=(0, 5))
         
-        # 右侧面板内容布局
+        # 右侧面板内容布局 - 增加预览区域高度，压缩导出区域
         self.preview_panel.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
-        self.export_panel.pack(fill=tk.X)
+        self.export_panel.pack(fill=tk.X, pady=(0, 0))
         
         # 状态栏布局
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)

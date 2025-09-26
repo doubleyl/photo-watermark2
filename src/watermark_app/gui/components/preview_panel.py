@@ -37,7 +37,7 @@ class PreviewPanel(ttk.LabelFrame):
         # 创建画布和滚动条
         self.canvas = tk.Canvas(
             canvas_frame,
-            bg='white',
+            bg='#2d2d2d',  # 深灰色背景，更容易看到图片边界
             relief=tk.SUNKEN,
             borderwidth=2
         )
@@ -132,90 +132,39 @@ class PreviewPanel(ttk.LabelFrame):
             watermark_settings = self.app.watermark_panel.get_settings()
             
             if watermark_settings['enabled']:
-                if watermark_settings['type'] == 'text':
-                    self.apply_text_watermark(watermark_settings)
-                elif watermark_settings['type'] == 'image':
-                    self.apply_image_watermark(watermark_settings)
-    
-    def apply_text_watermark(self, settings: dict):
-        """应用文本水印"""
-        try:
-            draw = ImageDraw.Draw(self.current_image)
-            
-            # 获取文本和字体
-            text = settings.get('text', '水印')
-            font_size = settings.get('font_size', 36)
-            
-            # 尝试使用系统字体
-            try:
-                font = ImageFont.truetype("Arial.ttf", font_size)
-            except:
-                font = ImageFont.load_default()
-            
-            # 获取文本尺寸
-            bbox = draw.textbbox((0, 0), text, font=font)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-            
-            # 计算位置
-            img_width, img_height = self.current_image.size
-            position = settings.get('position', 'bottom_right')
-            
-            if position == 'top_left':
-                x, y = 20, 20
-            elif position == 'top_center':
-                x, y = (img_width - text_width) // 2, 20
-            elif position == 'top_right':
-                x, y = img_width - text_width - 20, 20
-            elif position == 'center_left':
-                x, y = 20, (img_height - text_height) // 2
-            elif position == 'center':
-                x, y = (img_width - text_width) // 2, (img_height - text_height) // 2
-            elif position == 'center_right':
-                x, y = img_width - text_width - 20, (img_height - text_height) // 2
-            elif position == 'bottom_left':
-                x, y = 20, img_height - text_height - 20
-            elif position == 'bottom_center':
-                x, y = (img_width - text_width) // 2, img_height - text_height - 20
-            else:  # bottom_right
-                x, y = img_width - text_width - 20, img_height - text_height - 20
-            
-            # 应用自定义位置偏移
-            x += settings.get('offset_x', 0)
-            y += settings.get('offset_y', 0)
-            
-            # 获取颜色和透明度
-            color = settings.get('color', '#FFFFFF')
-            opacity = settings.get('opacity', 80)
-            
-            # 如果需要透明度，创建透明图层
-            if opacity < 100:
-                # 创建透明图层
-                overlay = Image.new('RGBA', self.current_image.size, (0, 0, 0, 0))
-                overlay_draw = ImageDraw.Draw(overlay)
-                
-                # 转换颜色
-                if color.startswith('#'):
-                    r = int(color[1:3], 16)
-                    g = int(color[3:5], 16)
-                    b = int(color[5:7], 16)
-                    alpha = int(255 * opacity / 100)
-                    text_color = (r, g, b, alpha)
-                else:
-                    text_color = color
-                
-                overlay_draw.text((x, y), text, font=font, fill=text_color)
-                
-                # 合并图层
-                if self.current_image.mode != 'RGBA':
-                    self.current_image = self.current_image.convert('RGBA')
-                self.current_image = Image.alpha_composite(self.current_image, overlay)
-            else:
-                # 直接绘制
-                draw.text((x, y), text, font=font, fill=color)
-                
-        except Exception as e:
-            print(f"应用文本水印失败: {e}")
+                # 使用水印管理器应用水印
+                watermark_manager = WatermarkManager()
+                try:
+                    if watermark_settings['type'] == 'text':
+                        # 转换位置字符串为枚举
+                        position_str = watermark_settings.get('position', 'bottom_right')
+                        position = getattr(WatermarkPosition, position_str.upper(), WatermarkPosition.BOTTOM_RIGHT)
+                        
+                        self.current_image = watermark_manager.apply_text_watermark(
+                            self.current_image,
+                            text=watermark_settings.get('text', '水印'),
+                            font_size=watermark_settings.get('font_size', 36),
+                            font_path=watermark_settings.get('font_path', 'default'),
+                            color=watermark_settings.get('color', '#FFFFFF'),
+                            opacity=watermark_settings.get('opacity', 80),
+                            position=position,
+                            offset=(watermark_settings.get('offset_x', 0), watermark_settings.get('offset_y', 0))
+                        )
+                    elif watermark_settings['type'] == 'image':
+                        # 转换位置字符串为枚举
+                        position_str = watermark_settings.get('position', 'bottom_right')
+                        position = getattr(WatermarkPosition, position_str.upper(), WatermarkPosition.BOTTOM_RIGHT)
+                        
+                        self.current_image = watermark_manager.apply_image_watermark(
+                            self.current_image,
+                            watermark_path=watermark_settings.get('image_path', ''),
+                            opacity=watermark_settings.get('opacity', 80),
+                            position=position,
+                            scale=watermark_settings.get('scale', 0.2),
+                            offset=(watermark_settings.get('offset_x', 0), watermark_settings.get('offset_y', 0))
+                        )
+                except Exception as e:
+                    print(f"应用水印失败: {e}")
     
     def apply_image_watermark(self, settings: dict):
         """应用图片水印"""
@@ -285,7 +234,22 @@ class PreviewPanel(ttk.LabelFrame):
             
             # 清空画布并显示图片
             self.canvas.delete("all")
-            self.canvas.create_image(0, 0, anchor=tk.NW, image=self.current_photo)
+            
+            # 获取画布尺寸
+            canvas_width = self.canvas.winfo_width()
+            canvas_height = self.canvas.winfo_height()
+            
+            # 如果画布尺寸无效，使用默认值
+            if canvas_width <= 1 or canvas_height <= 1:
+                canvas_width, canvas_height = 400, 300
+            
+            # 计算图片在画布中的居中位置
+            img_width, img_height = display_image.size
+            x = max(0, (canvas_width - img_width) // 2)
+            y = max(0, (canvas_height - img_height) // 2)
+            
+            # 在居中位置显示图片
+            self.canvas.create_image(x, y, anchor=tk.NW, image=self.current_photo)
             
             # 更新滚动区域
             self.canvas.configure(scrollregion=self.canvas.bbox("all"))
