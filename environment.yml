@@ -1,0 +1,16 @@
+name: photo-watermark
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - pip
+  - pillow=9.5.0
+  - numpy=1.24.3
+  - pyyaml=6.0
+  - matplotlib=3.7.1
+  - fonttools=4.40.0
+  - pip:
+    - tkinter-tooltip==2.2.0
+    - tkinterdnd2==0.3.0
+    - tkcolorpicker==2.1.3
