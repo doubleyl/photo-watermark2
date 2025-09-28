@@ -210,7 +210,9 @@ class ExportPanel(ttk.LabelFrame):
         format_type = self.output_format.get()
         
         if format_type == "JPEG":
-            self.quality_frame.pack(fill=tk.X, pady=(0, 10), before=self.winfo_children()[-3])
+            # 先取消pack，然后重新pack到正确位置
+            self.quality_frame.pack_forget()
+            self.quality_frame.pack(fill=tk.X, pady=(0, 10), after=self.format_frame)
         else:
             self.quality_frame.pack_forget()
     

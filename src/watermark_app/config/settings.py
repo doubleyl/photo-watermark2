@@ -9,6 +9,7 @@ import json
 import yaml
 from typing import Dict, Any, Optional, List, Tuple
 from pathlib import Path
+from datetime import datetime
 
 
 class Settings:
@@ -245,7 +246,7 @@ class Settings:
             # 添加元数据
             template_with_meta = {
                 'name': name,
-                'created_at': str(Path().ctime()),
+                'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'version': '1.0',
                 'data': template_data
             }

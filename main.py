@@ -14,6 +14,11 @@ from tkinter import messagebox
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 try:
+    from tkinterdnd2 import TkinterDnD
+except ImportError:
+    TkinterDnD = None
+
+try:
     from watermark_app.gui.main_window import WatermarkApp
 except ImportError as e:
     messagebox.showerror("导入错误", f"无法导入应用程序模块: {e}")
@@ -23,8 +28,12 @@ except ImportError as e:
 def main():
     """主函数"""
     try:
-        # 创建主窗口
-        root = tk.Tk()
+        # 创建主窗口，支持拖拽功能
+        if TkinterDnD is not None:
+            root = TkinterDnD.Tk()
+        else:
+            root = tk.Tk()
+            
         app = WatermarkApp(root)
         
         # 启动应用程序

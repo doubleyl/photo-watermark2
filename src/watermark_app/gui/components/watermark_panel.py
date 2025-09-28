@@ -5,7 +5,7 @@
 """
 
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, colorchooser
+from tkinter import ttk, filedialog, messagebox, colorchooser, simpledialog
 import os
 from typing import Dict, Any, Optional, Callable
 
@@ -33,6 +33,14 @@ class WatermarkPanel(ttk.LabelFrame):
         self.image_scale = tk.DoubleVar(value=0.2)
         self.offset_x = tk.IntVar(value=0)
         self.offset_y = tk.IntVar(value=0)
+        
+        # 高级功能变量
+        self.rotation_angle = tk.IntVar(value=0)
+        self.shadow_enabled = tk.BooleanVar(value=False)
+        self.shadow_offset_x = tk.IntVar(value=2)
+        self.shadow_offset_y = tk.IntVar(value=2)
+        self.shadow_blur = tk.IntVar(value=4)
+        self.shadow_color = tk.StringVar(value="#000000")
         
         # 获取可用字体
         from ...core import WatermarkManager
@@ -93,6 +101,11 @@ class WatermarkPanel(ttk.LabelFrame):
         self.position_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.position_frame, text="位置设置")
         self.setup_position_settings()
+        
+        # 高级设置
+        self.advanced_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.advanced_frame, text="高级设置")
+        self.setup_advanced_settings()
         
         # 模板管理
         template_frame = ttk.LabelFrame(self, text="模板管理", padding=5)
@@ -292,6 +305,108 @@ class WatermarkPanel(ttk.LabelFrame):
         # 配置列权重
         self.position_frame.columnconfigure(1, weight=1)
     
+    def setup_advanced_settings(self):
+        """设置高级功能选项"""
+        # 旋转角度
+        ttk.Label(self.advanced_frame, text="旋转角度:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        
+        rotation_scale = ttk.Scale(
+            self.advanced_frame,
+            from_=-180,
+            to=180,
+            variable=self.rotation_angle,
+            orient=tk.HORIZONTAL,
+            command=self.on_setting_change
+        )
+        rotation_scale.grid(row=0, column=1, sticky=tk.EW, pady=2, padx=(5, 0))
+        
+        rotation_label = ttk.Label(self.advanced_frame, text="0°")
+        rotation_label.grid(row=0, column=2, pady=2, padx=(5, 0))
+        
+        # 绑定旋转角度显示更新
+        def update_rotation_label(*args):
+            rotation_label.config(text=f"{self.rotation_angle.get()}°")
+        self.rotation_angle.trace('w', update_rotation_label)
+        
+        # 阴影设置 - 直接放在advanced_frame中
+        ttk.Checkbutton(
+            self.advanced_frame,
+            text="启用阴影",
+            variable=self.shadow_enabled,
+            command=self.on_shadow_toggle
+        ).grid(row=1, column=0, columnspan=3, sticky=tk.W, pady=(5, 5))
+        
+        # 阴影偏移
+        ttk.Label(self.advanced_frame, text="阴影偏移:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        
+        shadow_offset_frame = ttk.Frame(self.advanced_frame)
+        shadow_offset_frame.grid(row=2, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=(5, 0))
+        
+        ttk.Label(shadow_offset_frame, text="X:").pack(side=tk.LEFT)
+        ttk.Spinbox(
+            shadow_offset_frame,
+            from_=-20,
+            to=20,
+            textvariable=self.shadow_offset_x,
+            width=6,
+            command=self.on_setting_change
+        ).pack(side=tk.LEFT, padx=(2, 10))
+        
+        ttk.Label(shadow_offset_frame, text="Y:").pack(side=tk.LEFT)
+        ttk.Spinbox(
+            shadow_offset_frame,
+            from_=-20,
+            to=20,
+            textvariable=self.shadow_offset_y,
+            width=6,
+            command=self.on_setting_change
+        ).pack(side=tk.LEFT, padx=(2, 0))
+        
+        # 阴影模糊
+        ttk.Label(self.advanced_frame, text="模糊半径:").grid(row=3, column=0, sticky=tk.W, pady=2)
+        
+        blur_scale = ttk.Scale(
+            self.advanced_frame,
+            from_=0,
+            to=10,
+            variable=self.shadow_blur,
+            orient=tk.HORIZONTAL,
+            command=self.on_setting_change
+        )
+        blur_scale.grid(row=3, column=1, sticky=tk.EW, pady=2, padx=(5, 0))
+        
+        blur_label = ttk.Label(self.advanced_frame, text="4px")
+        blur_label.grid(row=3, column=2, pady=2, padx=(5, 0))
+        
+        # 绑定模糊半径显示更新
+        def update_blur_label(*args):
+            blur_label.config(text=f"{self.shadow_blur.get()}px")
+        self.shadow_blur.trace('w', update_blur_label)
+        
+        # 阴影颜色
+        ttk.Label(self.advanced_frame, text="阴影颜色:").grid(row=4, column=0, sticky=tk.W, pady=2)
+        
+        shadow_color_frame = ttk.Frame(self.advanced_frame)
+        shadow_color_frame.grid(row=4, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=(5, 0))
+        
+        self.shadow_color_button = tk.Button(
+            shadow_color_frame,
+            text="选择颜色",
+            bg="black",  # 使用系统颜色名称
+            fg="white",
+            command=self.choose_shadow_color,
+            width=10
+        )
+        self.shadow_color_button.pack(side=tk.LEFT)
+        
+        ttk.Label(shadow_color_frame, textvariable=self.shadow_color).pack(side=tk.LEFT, padx=(10, 0))
+        
+        # 配置列权重
+        self.advanced_frame.columnconfigure(1, weight=1)
+        
+        # 初始化阴影控件状态
+        self.on_shadow_toggle()
+    
     def setup_bindings(self):
         """设置事件绑定"""
         # 绑定变量变化事件
@@ -299,6 +414,9 @@ class WatermarkPanel(ttk.LabelFrame):
         self.image_path.trace('w', self.on_setting_change)
         self.offset_x.trace('w', self.on_setting_change)
         self.offset_y.trace('w', self.on_setting_change)
+        self.rotation_angle.trace('w', self.on_setting_change)
+        self.shadow_offset_x.trace('w', self.on_setting_change)
+        self.shadow_offset_y.trace('w', self.on_setting_change)
     
     def on_watermark_toggle(self):
         """水印启用/禁用切换"""
@@ -339,16 +457,76 @@ class WatermarkPanel(ttk.LabelFrame):
         if hasattr(self.app, 'preview_panel'):
             self.app.preview_panel.refresh_preview()
     
+    def on_shadow_toggle(self):
+        """阴影启用/禁用切换"""
+        enabled = self.shadow_enabled.get()
+        
+        # 启用/禁用阴影相关控件
+        state = tk.NORMAL if enabled else tk.DISABLED
+        
+        # 查找阴影设置框架并设置其子控件状态
+        for child in self.advanced_frame.winfo_children():
+            if isinstance(child, ttk.LabelFrame) and "阴影效果" in str(child.cget('text')):
+                for shadow_child in child.winfo_children():
+                    if not isinstance(shadow_child, ttk.Checkbutton):  # 不禁用复选框本身
+                        self.set_widget_state(shadow_child, state)
+        
+        self.on_setting_change()
+    
     def choose_color(self):
         """选择颜色"""
+        # 获取当前颜色，如果是默认的黑色，使用一个更明显的初始颜色
+        current_color = self.text_color.get()
+        if current_color == "#000000":
+            initial_color = "#333333"  # 使用深灰色作为初始颜色，更容易看到
+        else:
+            initial_color = current_color
+            
         color = colorchooser.askcolor(
-            color=self.text_color.get(),
+            color=initial_color,
             title="选择文本颜色"
         )
         
         if color[1]:  # 用户选择了颜色
             self.text_color.set(color[1])
-            self.color_button.config(bg=color[1])
+            # 更新按钮颜色，确保文本颜色与背景形成对比
+            bg_color = color[1]
+            # 计算亮度来决定文本颜色
+            r = int(bg_color[1:3], 16)
+            g = int(bg_color[3:5], 16)
+            b = int(bg_color[5:7], 16)
+            brightness = (r * 299 + g * 587 + b * 114) / 1000
+            text_color = "white" if brightness < 128 else "black"
+            
+            self.color_button.config(bg=bg_color, fg=text_color)
+            self.on_setting_change()
+    
+    def choose_shadow_color(self):
+        """选择阴影颜色"""
+        # 获取当前颜色，如果是默认的黑色，使用一个更明显的初始颜色
+        current_color = self.shadow_color.get()
+        if current_color == "#000000":
+            initial_color = "#333333"  # 使用深灰色作为初始颜色，更容易看到
+        else:
+            initial_color = current_color
+            
+        color = colorchooser.askcolor(
+            color=initial_color,
+            title="选择阴影颜色"
+        )
+        
+        if color[1]:  # 用户选择了颜色
+            self.shadow_color.set(color[1])
+            # 更新按钮颜色，确保文本颜色与背景形成对比
+            bg_color = color[1]
+            # 计算亮度来决定文本颜色
+            r = int(bg_color[1:3], 16)
+            g = int(bg_color[3:5], 16)
+            b = int(bg_color[5:7], 16)
+            brightness = (r * 299 + g * 587 + b * 114) / 1000
+            text_color = "white" if brightness < 128 else "black"
+            
+            self.shadow_color_button.config(bg=bg_color, fg=text_color)
             self.on_setting_change()
     
     def browse_image(self):
@@ -387,7 +565,13 @@ class WatermarkPanel(ttk.LabelFrame):
             'image_path': self.image_path.get(),
             'scale': self.image_scale.get(),
             'offset_x': self.offset_x.get(),
-            'offset_y': self.offset_y.get()
+            'offset_y': self.offset_y.get(),
+            'rotation_angle': self.rotation_angle.get(),
+            'shadow_enabled': self.shadow_enabled.get(),
+            'shadow_offset_x': self.shadow_offset_x.get(),
+            'shadow_offset_y': self.shadow_offset_y.get(),
+            'shadow_blur': self.shadow_blur.get(),
+            'shadow_color': self.shadow_color.get()
         }
     
     def set_settings(self, settings: Dict[str, Any]):
@@ -404,13 +588,23 @@ class WatermarkPanel(ttk.LabelFrame):
         self.image_scale.set(settings.get('scale', 0.2))
         self.offset_x.set(settings.get('offset_x', 0))
         self.offset_y.set(settings.get('offset_y', 0))
+        self.rotation_angle.set(settings.get('rotation_angle', 0))
+        self.shadow_enabled.set(settings.get('shadow_enabled', False))
+        self.shadow_offset_x.set(settings.get('shadow_offset_x', 2))
+        self.shadow_offset_y.set(settings.get('shadow_offset_y', 2))
+        self.shadow_blur.set(settings.get('shadow_blur', 4))
+        self.shadow_color.set(settings.get('shadow_color', '#000000'))
         
         # 更新颜色按钮
         self.color_button.config(bg=self.text_color.get())
+        if hasattr(self, 'shadow_color_button'):
+            self.shadow_color_button.config(bg=self.shadow_color.get())
         
         # 更新界面状态
         self.on_watermark_toggle()
         self.on_type_change()
+        if hasattr(self, 'shadow_enabled'):
+            self.on_shadow_toggle()
     
     def reset_settings(self):
         """重置设置"""
@@ -426,21 +620,215 @@ class WatermarkPanel(ttk.LabelFrame):
                 'image_path': '',
                 'scale': 0.2,
                 'offset_x': 0,
-                'offset_y': 0
+                'offset_y': 0,
+                'rotation_angle': 0,
+                'shadow_enabled': False,
+                'shadow_offset_x': 2,
+                'shadow_offset_y': 2,
+                'shadow_blur': 4,
+                'shadow_color': '#000000'
             }
             self.set_settings(default_settings)
     
     def save_template(self):
         """保存模板"""
-        # 这里可以实现模板保存功能
-        messagebox.showinfo("提示", "模板保存功能将在后续版本中实现")
+        try:
+            # 弹出对话框让用户输入模板名称
+            template_name = tk.simpledialog.askstring(
+                "保存模板",
+                "请输入模板名称:",
+                parent=self
+            )
+            
+            if not template_name:
+                return
+                
+            # 获取当前设置
+            settings = self.get_settings()
+            
+            # 保存模板
+            from ...config import Settings
+            config = Settings()
+            
+            if config.save_template(template_name, settings):
+                messagebox.showinfo("成功", f"模板 '{template_name}' 保存成功！")
+            else:
+                messagebox.showerror("错误", "模板保存失败！")
+                
+        except Exception as e:
+            messagebox.showerror("错误", f"保存模板时发生错误: {e}")
     
     def load_template(self):
         """加载模板"""
-        # 这里可以实现模板加载功能
-        messagebox.showinfo("提示", "模板加载功能将在后续版本中实现")
+        try:
+            from ...config import Settings
+            config = Settings()
+            
+            # 获取可用模板列表
+            templates = config.list_templates()
+            
+            if not templates:
+                messagebox.showinfo("提示", "没有可用的模板")
+                return
+            
+            # 创建模板选择对话框
+            dialog = TemplateSelectDialog(self, templates, config)
+            template_data = dialog.show()
+            
+            if template_data:
+                # 加载模板设置
+                self.set_settings(template_data)
+                messagebox.showinfo("成功", "模板加载成功！")
+                
+        except Exception as e:
+            messagebox.showerror("错误", f"加载模板时发生错误: {e}")
     
     def manage_templates(self):
         """管理模板"""
-        # 这里可以实现模板管理功能
-        messagebox.showinfo("提示", "模板管理功能将在后续版本中实现")
+        try:
+            from ...config import Settings
+            config = Settings()
+            
+            # 创建模板管理对话框
+            dialog = TemplateManagerDialog(self, config)
+            dialog.show()
+            
+        except Exception as e:
+             messagebox.showerror("错误", f"管理模板时发生错误: {e}")
+
+
+class TemplateSelectDialog:
+    """模板选择对话框"""
+    
+    def __init__(self, parent, templates, config):
+        self.parent = parent
+        self.templates = templates
+        self.config = config
+        self.result = None
+        
+    def show(self):
+        """显示对话框"""
+        self.dialog = tk.Toplevel(self.parent)
+        self.dialog.title("选择模板")
+        self.dialog.geometry("400x300")
+        self.dialog.transient(self.parent)
+        self.dialog.grab_set()
+        
+        # 模板列表
+        frame = ttk.Frame(self.dialog, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        ttk.Label(frame, text="选择要加载的模板:").pack(anchor=tk.W, pady=(0, 5))
+        
+        # 创建列表框
+        listbox_frame = ttk.Frame(frame)
+        listbox_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        self.listbox = tk.Listbox(listbox_frame)
+        scrollbar = ttk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=self.listbox.yview)
+        self.listbox.configure(yscrollcommand=scrollbar.set)
+        
+        self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 添加模板到列表
+        for template in self.templates:
+            self.listbox.insert(tk.END, template)
+        
+        # 按钮
+        button_frame = ttk.Frame(frame)
+        button_frame.pack(fill=tk.X)
+        
+        ttk.Button(button_frame, text="加载", command=self.load_selected).pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Button(button_frame, text="取消", command=self.dialog.destroy).pack(side=tk.RIGHT)
+        
+        # 等待对话框关闭
+        self.dialog.wait_window()
+        return self.result
+    
+    def load_selected(self):
+        """加载选中的模板"""
+        selection = self.listbox.curselection()
+        if selection:
+            template_name = self.templates[selection[0]]
+            self.result = self.config.load_template(template_name)
+        self.dialog.destroy()
+
+
+class TemplateManagerDialog:
+    """模板管理对话框"""
+    
+    def __init__(self, parent, config):
+        self.parent = parent
+        self.config = config
+        
+    def show(self):
+        """显示对话框"""
+        self.dialog = tk.Toplevel(self.parent)
+        self.dialog.title("模板管理")
+        self.dialog.geometry("500x400")
+        self.dialog.transient(self.parent)
+        self.dialog.grab_set()
+        
+        frame = ttk.Frame(self.dialog, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        ttk.Label(frame, text="已保存的模板:").pack(anchor=tk.W, pady=(0, 5))
+        
+        # 创建树形视图显示模板
+        tree_frame = ttk.Frame(frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        self.tree = ttk.Treeview(tree_frame, columns=("创建时间", "类型"), show="tree headings")
+        self.tree.heading("#0", text="模板名称")
+        self.tree.heading("创建时间", text="创建时间")
+        self.tree.heading("类型", text="水印类型")
+        
+        tree_scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=tree_scrollbar.set)
+        
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        tree_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # 刷新模板列表
+        self.refresh_templates()
+        
+        # 按钮
+        button_frame = ttk.Frame(frame)
+        button_frame.pack(fill=tk.X)
+        
+        ttk.Button(button_frame, text="删除", command=self.delete_template).pack(side=tk.LEFT)
+        ttk.Button(button_frame, text="刷新", command=self.refresh_templates).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Button(button_frame, text="关闭", command=self.dialog.destroy).pack(side=tk.RIGHT)
+        
+    def refresh_templates(self):
+        """刷新模板列表"""
+        # 清空现有项目
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        # 添加模板
+        templates = self.config.list_templates()
+        for template_name in templates:
+            template_info = self.config.get_template_info(template_name)
+            if template_info:
+                self.tree.insert("", tk.END, text=template_name, values=(
+                    template_info.get("created_at", "未知"),
+                    template_info.get("watermark_type", "未知")
+                ))
+    
+    def delete_template(self):
+        """删除选中的模板"""
+        selection = self.tree.selection()
+        if not selection:
+            messagebox.showwarning("警告", "请选择要删除的模板")
+            return
+        
+        template_name = self.tree.item(selection[0])["text"]
+        
+        if messagebox.askyesno("确认删除", f"确定要删除模板 '{template_name}' 吗？"):
+            if self.config.delete_template(template_name):
+                messagebox.showinfo("成功", "模板删除成功！")
+                self.refresh_templates()
+            else:
+                messagebox.showerror("错误", "模板删除失败！")

@@ -7,7 +7,7 @@
 import os
 import math
 from typing import Tuple, Optional, Union, Dict, Any, List
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 from enum import Enum
 
 
@@ -46,7 +46,9 @@ class WatermarkManager:
                            position: WatermarkPosition = None, 
                            offset: Tuple[int, int] = (0, 0),
                            rotation: float = 0, font_path: str = None,
-                           opacity: float = 80) -> Image.Image:
+                           opacity: float = 80, shadow_enabled: bool = False,
+                           shadow_offset: Tuple[int, int] = (2, 2),
+                           shadow_blur: int = 4, shadow_color: str = "#000000") -> Image.Image:
         """应用文本水印"""
         if not text.strip():
             return img.copy()
@@ -112,12 +114,54 @@ class WatermarkManager:
             watermarked_img.size, (text_width, text_height), position, offset
         )
         
+        # 处理阴影颜色
+        shadow_rgba = None
+        if shadow_enabled and shadow_color:
+            print(f"阴影启用: {shadow_enabled}, 阴影颜色: {shadow_color}")
+            if shadow_color.startswith('#'):
+                r = int(shadow_color[1:3], 16)
+                g = int(shadow_color[3:5], 16)
+                b = int(shadow_color[5:7], 16)
+                # 阴影使用更高的不透明度，让它更明显
+                shadow_rgba = (r, g, b, 220)
+                print(f"阴影RGBA: {shadow_rgba}")
+            else:
+                print(f"阴影颜色格式不正确: {shadow_color}")
+        
         # 如果有旋转，创建旋转的文本图像
         if rotation != 0:
-            # 创建文本图像
-            text_img = Image.new('RGBA', (text_width + 20, text_height + 20), (255, 255, 255, 0))
+            # 创建文本图像，留出足够空间用于阴影和旋转
+            padding = max(20, shadow_blur * 2 + max(abs(shadow_offset[0]), abs(shadow_offset[1])))
+            text_img = Image.new('RGBA', (text_width + padding * 2, text_height + padding * 2), (255, 255, 255, 0))
             text_draw = ImageDraw.Draw(text_img)
-            text_draw.text((10, 10), text, font=font, fill=color)
+            
+            # 绘制阴影
+            if shadow_enabled and shadow_rgba:
+                shadow_x = padding + shadow_offset[0]
+                shadow_y = padding + shadow_offset[1]
+                
+                # 先绘制阴影
+                if shadow_blur > 0 and shadow_blur <= 10:
+                    # 创建单独的阴影图层
+                    shadow_layer = Image.new('RGBA', text_img.size, (255, 255, 255, 0))
+                    shadow_draw = ImageDraw.Draw(shadow_layer)
+                    shadow_draw.text((shadow_x, shadow_y), text, font=font, fill=shadow_rgba)
+                    
+                    # 应用适度的模糊效果
+                    blur_radius = float(shadow_blur)  # 使用用户设置的模糊半径
+                    shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+                    
+                    # 合并阴影到文本图像
+                    text_img = Image.alpha_composite(text_img, shadow_layer)
+                    text_draw = ImageDraw.Draw(text_img)
+                    print(f"旋转阴影模糊效果已应用，模糊半径: {blur_radius}")
+                else:
+                    # 直接绘制阴影
+                    text_draw.text((shadow_x, shadow_y), text, font=font, fill=shadow_rgba)
+                    print("旋转阴影直接绘制（无模糊）")
+            
+            # 绘制主文本
+            text_draw.text((padding, padding), text, font=font, fill=color)
             
             # 旋转文本图像
             rotated_text = text_img.rotate(rotation, expand=True)
@@ -130,7 +174,37 @@ class WatermarkManager:
             # 粘贴旋转的文本
             overlay.paste(rotated_text, (x, y), rotated_text)
         else:
-            # 直接绘制文本
+            # 绘制阴影
+            if shadow_enabled and shadow_rgba:
+                shadow_x = x + shadow_offset[0]
+                shadow_y = y + shadow_offset[1]
+                print(f"绘制阴影位置: ({shadow_x}, {shadow_y}), 偏移: {shadow_offset}, 模糊: {shadow_blur}")
+                
+                # 先绘制阴影
+                if shadow_blur > 0 and shadow_blur <= 10:  # 限制模糊范围
+                    # 创建阴影图层
+                    shadow_layer = Image.new('RGBA', overlay.size, (255, 255, 255, 0))
+                    shadow_draw = ImageDraw.Draw(shadow_layer)
+                    shadow_draw.text((shadow_x, shadow_y), text, font=font, fill=shadow_rgba)
+                    
+                    # 应用适度的模糊效果
+                    try:
+                        blur_radius = float(shadow_blur)  # 使用用户设置的模糊半径
+                        shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+                        # 合并阴影到主图层
+                        overlay = Image.alpha_composite(overlay, shadow_layer)
+                        draw = ImageDraw.Draw(overlay)
+                        print(f"阴影模糊效果已应用，模糊半径: {blur_radius}")
+                    except Exception as e:
+                        print(f"阴影模糊失败: {e}")
+                        # 如果模糊失败，直接绘制阴影
+                        draw.text((shadow_x, shadow_y), text, font=font, fill=shadow_rgba)
+                else:
+                    # 直接绘制阴影（无模糊或模糊值过大）
+                    draw.text((shadow_x, shadow_y), text, font=font, fill=shadow_rgba)
+                    print("直接绘制阴影（无模糊）")
+            
+            # 绘制主文本
             draw.text((x, y), text, font=font, fill=color)
         
         # 合并图层
@@ -314,7 +388,12 @@ class WatermarkManager:
                 position=position,
                 offset=offset,
                 rotation=rotation,
-                font_path=config.get('font_path', '')
+                font_path=config.get('font_path', ''),
+                opacity=config.get('opacity', 80),
+                shadow_enabled=config.get('shadow_enabled', False),
+                shadow_offset=(config.get('shadow_offset_x', 2), config.get('shadow_offset_y', 2)),
+                shadow_blur=config.get('shadow_blur', 4),
+                shadow_color=config.get('shadow_color', '#000000')
             )
         elif watermark_type == WatermarkType.IMAGE:
             return self.apply_image_watermark(

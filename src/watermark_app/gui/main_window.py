@@ -10,11 +10,16 @@ import os
 import sys
 from typing import List, Optional
 
+try:
+    from tkinterdnd2 import TkinterDnD
+except ImportError:
+    TkinterDnD = None
+
 # 导入核心模块
 from ..core import ImageProcessor, WatermarkManager, FileManager
 from ..config import Settings
 from ..utils import show_error, show_info, center_window
-from .components import ImageListPanel, PreviewPanel, WatermarkPanel, ExportPanel
+from .components import ImageListPanel, PreviewPanel, WatermarkPanel, ExportPanel, BatchPanel
 
 
 class WatermarkApp:
@@ -23,6 +28,7 @@ class WatermarkApp:
     def __init__(self, root: tk.Tk):
         """初始化应用程序"""
         self.root = root
+        
         self.setup_window()
         self.setup_components()
         self.setup_layout()
@@ -71,6 +77,9 @@ class WatermarkApp:
         self.preview_panel = PreviewPanel(self.right_panel, self)
         self.export_panel = ExportPanel(self.right_panel, self)
         
+        # 创建批量处理面板（作为折叠面板集成到左侧）
+        self.batch_panel = BatchPanel(self.left_panel, self)
+        
         # 创建状态栏
         self.status_bar = ttk.Label(
             self.root, 
@@ -88,9 +97,12 @@ class WatermarkApp:
         self.left_panel.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 5))
         self.right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         
-        # 左侧面板内容布局
+        # 左侧面板内容布局 - 使用折叠面板组织内容
         self.image_list_panel.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         self.watermark_panel.pack(fill=tk.X, pady=(0, 5))
+        
+        # 批量处理面板作为折叠面板放在左侧底部
+        self.batch_panel.pack(fill=tk.X, pady=(0, 5))
         
         # 右侧面板内容布局 - 增加预览区域高度，压缩导出区域
         self.preview_panel.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
@@ -157,29 +169,78 @@ class WatermarkApp:
     def import_images(self):
         """导入图片文件"""
         filetypes = [
-            ("图片文件", "*.jpg *.jpeg *.png *.bmp *.tiff"),
+            ("图片文件", "*.jpg *.jpeg *.png *.bmp *.tiff *.tif *.webp *.gif *.ico"),
             ("JPEG文件", "*.jpg *.jpeg"),
             ("PNG文件", "*.png"),
             ("BMP文件", "*.bmp"),
-            ("TIFF文件", "*.tiff"),
+            ("TIFF文件", "*.tiff *.tif"),
+            ("WebP文件", "*.webp"),
+            ("GIF文件", "*.gif"),
             ("所有文件", "*.*")
         ]
         
         files = filedialog.askopenfilenames(
-            title="选择图片文件",
-            filetypes=filetypes
+            title="选择图片文件（支持多选）",
+            filetypes=filetypes,
+            initialdir=os.path.expanduser("~/Pictures")  # 默认打开图片文件夹
         )
         
         if files:
-            self.image_list_panel.add_images(files)
-            self.update_status(f"已导入 {len(files)} 个文件")
+            # 过滤有效的图片文件
+            valid_files = self.filter_valid_images(files)
+            if valid_files:
+                added_count = self.image_list_panel.add_images(valid_files)
+                if added_count > 0:
+                    self.update_status(f"成功导入 {added_count} 个图片文件")
+                    if len(valid_files) != len(files):
+                        invalid_count = len(files) - len(valid_files)
+                        messagebox.showwarning("警告", f"已导入 {added_count} 个有效图片文件，跳过了 {invalid_count} 个无效文件")
+                else:
+                    self.update_status("所选文件已在列表中")
+            else:
+                messagebox.showwarning("警告", "所选文件中没有有效的图片文件")
     
     def import_folder(self):
         """导入文件夹"""
-        folder = filedialog.askdirectory(title="选择图片文件夹")
+        folder = filedialog.askdirectory(
+            title="选择图片文件夹",
+            initialdir=os.path.expanduser("~/Pictures")
+        )
         if folder:
-            self.image_list_panel.add_folder(folder)
-            self.update_status(f"已导入文件夹: {folder}")
+            # 询问是否包含子文件夹
+            include_subfolders = messagebox.askyesno(
+                "搜索选项", 
+                "是否包含子文件夹中的图片？\n\n是：搜索所有子文件夹\n否：仅搜索当前文件夹",
+                default='yes'
+            )
+            
+            added_count = self.image_list_panel.add_folder(folder, include_subfolders)
+            if added_count > 0:
+                self.update_status(f"从文件夹导入了 {added_count} 个图片文件")
+            else:
+                self.update_status("文件夹中没有找到新的图片文件")
+    
+    def filter_valid_images(self, files):
+        """过滤有效的图片文件"""
+        from PIL import Image
+        
+        valid_files = []
+        supported_formats = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.gif', '.ico'}
+        
+        for file_path in files:
+            if os.path.isfile(file_path):
+                ext = os.path.splitext(file_path)[1].lower()
+                if ext in supported_formats:
+                    # 尝试用PIL打开文件验证是否为有效图片
+                    try:
+                        with Image.open(file_path) as img:
+                            img.verify()  # 验证图片完整性
+                        valid_files.append(file_path)
+                    except Exception:
+                        # 如果无法打开或验证失败，跳过该文件
+                        continue
+        
+        return valid_files
     
     def export_images(self):
         """导出图片"""

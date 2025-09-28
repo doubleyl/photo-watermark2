@@ -20,10 +20,19 @@ class PreviewPanel(ttk.LabelFrame):
     def __init__(self, parent, app):
         super().__init__(parent, text="预览", padding=10)
         self.app = app
-        self.current_image = None
-        self.current_photo = None
-        self.original_image = None
-        self.preview_size = (400, 300)
+        
+        # 图片相关变量
+        self.original_image: Optional[Image.Image] = None
+        self.current_image: Optional[Image.Image] = None
+        self.current_photo: Optional[ImageTk.PhotoImage] = None
+        self.zoom_factor = 1.0
+        
+        # 拖拽相关变量
+        self.dragging = False
+        self.drag_start_x = 0
+        self.drag_start_y = 0
+        self.watermark_offset_x = 0
+        self.watermark_offset_y = 0
         
         self.setup_ui()
         self.setup_bindings()
@@ -148,7 +157,12 @@ class PreviewPanel(ttk.LabelFrame):
                             color=watermark_settings.get('color', '#FFFFFF'),
                             opacity=watermark_settings.get('opacity', 80),
                             position=position,
-                            offset=(watermark_settings.get('offset_x', 0), watermark_settings.get('offset_y', 0))
+                            offset=(watermark_settings.get('offset_x', 0), watermark_settings.get('offset_y', 0)),
+                            rotation=watermark_settings.get('rotation_angle', 0),
+                            shadow_enabled=watermark_settings.get('shadow_enabled', False),
+                            shadow_offset=(watermark_settings.get('shadow_offset_x', 2), watermark_settings.get('shadow_offset_y', 2)),
+                            shadow_blur=watermark_settings.get('shadow_blur', 4),
+                            shadow_color=watermark_settings.get('shadow_color', '#000000')
                         )
                     elif watermark_settings['type'] == 'image':
                         # 转换位置字符串为枚举
@@ -161,7 +175,8 @@ class PreviewPanel(ttk.LabelFrame):
                             opacity=watermark_settings.get('opacity', 80),
                             position=position,
                             scale=watermark_settings.get('scale', 0.2),
-                            offset=(watermark_settings.get('offset_x', 0), watermark_settings.get('offset_y', 0))
+                            offset=(watermark_settings.get('offset_x', 0), watermark_settings.get('offset_y', 0)),
+                            rotation=watermark_settings.get('rotation_angle', 0)
                         )
                 except Exception as e:
                     print(f"应用水印失败: {e}")
@@ -300,19 +315,48 @@ class PreviewPanel(ttk.LabelFrame):
             self.display_image()
     
     def on_canvas_click(self, event):
-        """画布点击事件"""
-        # 可以用于水印拖拽功能
-        pass
+        """画布点击事件 - 开始拖拽"""
+        if self.current_image is None:
+            return
+            
+        # 记录拖拽开始位置
+        self.dragging = True
+        self.drag_start_x = event.x
+        self.drag_start_y = event.y
+        
+        # 获取当前水印偏移
+        if hasattr(self.app, 'watermark_panel'):
+            self.watermark_offset_x = self.app.watermark_panel.offset_x.get()
+            self.watermark_offset_y = self.app.watermark_panel.offset_y.get()
     
     def on_canvas_drag(self, event):
-        """画布拖拽事件"""
-        # 可以用于水印拖拽功能
-        pass
+        """画布拖拽事件 - 实时更新水印位置"""
+        if not self.dragging or self.current_image is None:
+            return
+            
+        # 计算拖拽距离
+        dx = event.x - self.drag_start_x
+        dy = event.y - self.drag_start_y
+        
+        # 更新水印偏移
+        new_offset_x = self.watermark_offset_x + dx
+        new_offset_y = self.watermark_offset_y + dy
+        
+        # 限制偏移范围
+        new_offset_x = max(-200, min(200, new_offset_x))
+        new_offset_y = max(-200, min(200, new_offset_y))
+        
+        # 更新水印面板的偏移值
+        if hasattr(self.app, 'watermark_panel'):
+            self.app.watermark_panel.offset_x.set(new_offset_x)
+            self.app.watermark_panel.offset_y.set(new_offset_y)
+            
+            # 实时更新预览
+            self.refresh_preview()
     
     def on_canvas_release(self, event):
-        """画布释放事件"""
-        # 可以用于水印拖拽功能
-        pass
+        """画布释放事件 - 结束拖拽"""
+        self.dragging = False
     
     def refresh_preview(self):
         """刷新预览"""
