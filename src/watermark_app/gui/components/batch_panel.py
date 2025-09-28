@@ -27,11 +27,12 @@ class BatchPanel(ttk.LabelFrame):
         self.watermark_manager = WatermarkManager()
         
         # 批量处理设置
-        self.input_files = []
         self.output_folder = tk.StringVar(value=os.path.expanduser("~/Desktop"))
         self.processing = False
         self.progress_var = tk.DoubleVar()
         self.status_var = tk.StringVar(value="就绪")
+        self.overwrite_var = tk.BooleanVar(value=False)
+        self.keep_names_var = tk.BooleanVar(value=False)
         
         # 折叠状态
         self.is_expanded = tk.BooleanVar(value=False)
@@ -64,15 +65,9 @@ class BatchPanel(ttk.LabelFrame):
         header_frame = ttk.Frame(self)
         header_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # 文件选择按钮
-        ttk.Button(header_frame, text="选择图片", 
-                  command=self.select_files, width=10).pack(side=tk.LEFT)
-        ttk.Button(header_frame, text="选择文件夹", 
-                  command=self.select_folder, width=10).pack(side=tk.LEFT, padx=(5, 0))
-        
-        # 文件数量显示
-        self.file_count_label = ttk.Label(header_frame, text="0个文件")
-        self.file_count_label.pack(side=tk.LEFT, padx=(10, 0))
+        # 提示标签 - 使用已有的导入功能
+        info_label = ttk.Label(header_frame, text="使用上方的导入功能添加图片")
+        info_label.pack(side=tk.LEFT)
         
         # 展开/折叠按钮
         self.toggle_button = ttk.Button(header_frame, text="▼ 展开", 
@@ -96,24 +91,13 @@ class BatchPanel(ttk.LabelFrame):
         self.setup_progress_display(self.content_frame)
     
     def setup_compact_file_list(self, parent):
-        """设置紧凑的文件列表"""
-        list_frame = ttk.LabelFrame(parent, text="选中的文件", padding=5)
-        list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+        """设置文件信息显示"""
+        info_frame = ttk.LabelFrame(parent, text="处理信息", padding=5)
+        info_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # 简化的文件列表（只显示文件名）
-        list_container = ttk.Frame(list_frame)
-        list_container.pack(fill=tk.BOTH, expand=True)
-        
-        self.file_listbox = tk.Listbox(list_container, height=6)
-        scrollbar = ttk.Scrollbar(list_container, orient=tk.VERTICAL, command=self.file_listbox.yview)
-        self.file_listbox.configure(yscrollcommand=scrollbar.set)
-        
-        self.file_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # 清空按钮
-        ttk.Button(list_frame, text="清空列表", 
-                  command=self.clear_files).pack(pady=(5, 0))
+        # 显示将要处理的图片数量
+        self.file_count_info = ttk.Label(info_frame, text="将处理上方图片列表中的所有图片")
+        self.file_count_info.pack()
     
     def setup_compact_output_settings(self, parent):
         """设置紧凑的输出设置"""
@@ -129,7 +113,16 @@ class BatchPanel(ttk.LabelFrame):
                                 state="readonly", width=30)
         output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
         ttk.Button(folder_frame, text="浏览", 
-                  command=self.select_output_folder, width=6).pack(side=tk.RIGHT)
+                   command=self.select_output_folder, width=6).pack(side=tk.RIGHT)
+        
+        # 输出选项
+        options_frame = ttk.Frame(output_frame)
+        options_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        ttk.Checkbutton(options_frame, text="覆盖已存在的文件", 
+                       variable=self.overwrite_var).pack(side=tk.LEFT)
+        ttk.Checkbutton(options_frame, text="保持原始文件名", 
+                       variable=self.keep_names_var).pack(side=tk.LEFT, padx=(10, 0))
     
     def toggle_content(self):
         """切换内容区域的显示/隐藏"""
@@ -146,14 +139,18 @@ class BatchPanel(ttk.LabelFrame):
     
     def update_file_count(self):
         """更新文件数量显示"""
-        count = len(self.input_files)
-        self.file_count_label.config(text=f"{count}个文件")
+        # 获取主窗口图片列表的数量
+        image_files = self.app.image_list_panel.get_all_images()
+        count = len(image_files)
         
-        # 更新批量处理按钮状态
-        if count > 0:
-            self.batch_process_button.config(state="normal")
-        else:
+        if count == 0:
             self.batch_process_button.config(state="disabled")
+            if hasattr(self, 'file_count_info'):
+                self.file_count_info.config(text="请先导入图片到上方列表")
+        else:
+            self.batch_process_button.config(state="normal")
+            if hasattr(self, 'file_count_info'):
+                self.file_count_info.config(text=f"将处理上方图片列表中的 {count} 张图片")
         
 
         
@@ -181,140 +178,7 @@ class BatchPanel(ttk.LabelFrame):
                   command=self.open_output_folder, width=12).pack(side=tk.RIGHT)
         
 
-    def select_files(self):
-        """选择图片文件"""
-        filetypes = [
-            ("图片文件", "*.jpg *.jpeg *.png *.bmp *.tiff *.tif *.webp *.gif *.ico"),
-            ("JPEG文件", "*.jpg *.jpeg"),
-            ("PNG文件", "*.png"),
-            ("BMP文件", "*.bmp"),
-            ("TIFF文件", "*.tiff *.tif"),
-            ("WebP文件", "*.webp"),
-            ("GIF文件", "*.gif"),
-            ("所有文件", "*.*")
-        ]
-        
-        files = filedialog.askopenfilenames(
-            title="选择图片文件（支持多选）",
-            filetypes=filetypes,
-            initialdir=os.path.expanduser("~/Pictures")  # 默认打开图片文件夹
-        )
-        
-        if files:
-            # 过滤有效的图片文件
-            valid_files = self.filter_valid_images(files)
-            if valid_files:
-                self.add_files(valid_files)
-                if len(valid_files) != len(files):
-                    invalid_count = len(files) - len(valid_files)
-                    messagebox.showwarning("警告", f"已添加 {len(valid_files)} 个有效图片文件，跳过了 {invalid_count} 个无效文件")
-                else:
-                    self.app.update_status(f"成功添加 {len(valid_files)} 个图片文件")
-            else:
-                messagebox.showwarning("警告", "所选文件中没有有效的图片文件")
-            
-    def select_folder(self):
-        """选择文件夹"""
-        folder = filedialog.askdirectory(
-            title="选择包含图片的文件夹",
-            initialdir=os.path.expanduser("~/Pictures")
-        )
-        if folder:
-            # 询问是否包含子文件夹
-            include_subfolders = messagebox.askyesno(
-                "搜索选项", 
-                "是否包含子文件夹中的图片？\n\n是：搜索所有子文件夹\n否：仅搜索当前文件夹",
-                default='yes'
-            )
-            
-            # 查找文件夹中的图片文件
-            files = self.scan_folder_for_images(folder, include_subfolders)
-            
-            if files:
-                # 过滤有效的图片文件
-                valid_files = self.filter_valid_images(files)
-                if valid_files:
-                    added_count = self.add_files(valid_files)
-                    if added_count > 0:
-                        self.app.update_status(f"从文件夹添加了 {added_count} 个图片文件")
-                        messagebox.showinfo("成功", f"找到并添加了 {added_count} 个有效图片文件")
-                    else:
-                        messagebox.showinfo("提示", "所选文件已在列表中")
-                    
-                    if len(valid_files) != len(files):
-                        invalid_count = len(files) - len(valid_files)
-                        messagebox.showwarning("注意", f"跳过了 {invalid_count} 个无效或损坏的图片文件")
-                else:
-                    messagebox.showwarning("警告", "文件夹中没有找到有效的图片文件")
-            else:
-                messagebox.showwarning("警告", "在选择的文件夹中没有找到图片文件")
-                
-    def scan_folder_for_images(self, folder_path, include_subfolders=True):
-        """扫描文件夹中的图片文件"""
-        image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.gif', '.ico'}
-        files = []
-        
-        try:
-            if include_subfolders:
-                # 递归搜索所有子文件夹
-                for root, dirs, filenames in os.walk(folder_path):
-                    for filename in filenames:
-                        if os.path.splitext(filename.lower())[1] in image_extensions:
-                            files.append(os.path.join(root, filename))
-            else:
-                # 仅搜索当前文件夹
-                for filename in os.listdir(folder_path):
-                    file_path = os.path.join(folder_path, filename)
-                    if os.path.isfile(file_path):
-                        if os.path.splitext(filename.lower())[1] in image_extensions:
-                            files.append(file_path)
-        except Exception as e:
-            messagebox.showerror("错误", f"扫描文件夹时发生错误: {e}")
-            
-        return files
-    
-    def filter_valid_images(self, files):
-        """过滤有效的图片文件"""
-        valid_files = []
-        supported_formats = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.gif', '.ico'}
-        
-        for file_path in files:
-            if os.path.isfile(file_path):
-                ext = os.path.splitext(file_path)[1].lower()
-                if ext in supported_formats:
-                    # 尝试用PIL打开文件验证是否为有效图片
-                    try:
-                        with Image.open(file_path) as img:
-                            img.verify()  # 验证图片完整性
-                        valid_files.append(file_path)
-                    except Exception:
-                        # 如果无法打开或验证失败，跳过该文件
-                        continue
-        
-        return valid_files
-    
-    def add_files(self, files):
-        """添加文件到列表"""
-        added_count = 0
-        for file_path in files:
-            if file_path not in self.input_files:
-                self.input_files.append(file_path)
-                
-                # 添加到简化的列表框
-                filename = os.path.basename(file_path)
-                self.file_listbox.insert(tk.END, filename)
-                added_count += 1
-        
-        # 更新文件数量显示
-        self.update_file_count()
-        
-        return added_count
-                
-    def clear_files(self):
-        """清空文件列表"""
-        self.input_files.clear()
-        self.file_listbox.delete(0, tk.END)
-        self.update_file_count()
+
             
     def select_output_folder(self):
         """选择输出文件夹"""
@@ -333,8 +197,10 @@ class BatchPanel(ttk.LabelFrame):
             
     def start_batch_processing(self):
         """开始批量处理"""
-        if not self.input_files:
-            messagebox.showwarning("警告", "请先选择要处理的图片文件")
+        # 使用主窗口的图片列表
+        image_files = self.app.image_list_panel.get_all_images()
+        if not image_files:
+            messagebox.showwarning("警告", "请先导入要处理的图片文件")
             return
             
         if self.processing:
@@ -362,11 +228,13 @@ class BatchPanel(ttk.LabelFrame):
         
     def process_files(self):
         """处理文件（在后台线程中运行）"""
-        total_files = len(self.input_files)
+        # 获取主窗口的图片列表
+        image_files = self.app.image_list_panel.get_all_images()
+        total_files = len(image_files)
         processed_count = 0
         
         try:
-            for i, file_path in enumerate(self.input_files):
+            for i, file_path in enumerate(image_files):
                 if not self.processing:  # 检查是否被停止
                     break
                     
@@ -374,25 +242,14 @@ class BatchPanel(ttk.LabelFrame):
                 filename = os.path.basename(file_path)
                 self.status_var.set(f"正在处理: {filename}")
                 
-                # 更新树形视图中的状态
-                items = self.file_tree.get_children()
-                if i < len(items):
-                    self.file_tree.set(items[i], "状态", "处理中")
-                
                 try:
                     # 处理单个文件
                     self.process_single_file(file_path)
-                    
-                    # 更新状态为完成
-                    if i < len(items):
-                        self.file_tree.set(items[i], "状态", "已完成")
-                    
                     processed_count += 1
                     
                 except Exception as e:
-                    # 更新状态为错误
-                    if i < len(items):
-                        self.file_tree.set(items[i], "状态", f"错误: {str(e)}")
+                    print(f"处理文件失败 {file_path}: {e}")
+                    # 继续处理下一个文件
                 
                 # 更新进度
                 progress = (i + 1) / total_files * 100

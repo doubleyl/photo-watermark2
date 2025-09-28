@@ -19,7 +19,7 @@ except ImportError:
 from ..core import ImageProcessor, WatermarkManager, FileManager
 from ..config import Settings
 from ..utils import show_error, show_info, center_window
-from .components import ImageListPanel, PreviewPanel, WatermarkPanel, ExportPanel, BatchPanel
+from .components import ImageListPanel, PreviewPanel, WatermarkPanel, ExportPanel
 
 
 class WatermarkApp:
@@ -77,9 +77,6 @@ class WatermarkApp:
         self.preview_panel = PreviewPanel(self.right_panel, self)
         self.export_panel = ExportPanel(self.right_panel, self)
         
-        # 创建批量处理面板（作为折叠面板集成到左侧）
-        self.batch_panel = BatchPanel(self.left_panel, self)
-        
         # 创建状态栏
         self.status_bar = ttk.Label(
             self.root, 
@@ -97,12 +94,9 @@ class WatermarkApp:
         self.left_panel.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 5))
         self.right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         
-        # 左侧面板内容布局 - 使用折叠面板组织内容
-        self.image_list_panel.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
-        self.watermark_panel.pack(fill=tk.X, pady=(0, 5))
-        
-        # 批量处理面板作为折叠面板放在左侧底部
-        self.batch_panel.pack(fill=tk.X, pady=(0, 5))
+        # 左侧面板内容布局 - 限制图片列表高度，确保设置面板可见
+        self.image_list_panel.pack(fill=tk.BOTH, expand=False, pady=(0, 5))
+        self.watermark_panel.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         
         # 右侧面板内容布局 - 增加预览区域高度，压缩导出区域
         self.preview_panel.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
@@ -154,12 +148,29 @@ class WatermarkApp:
         self.root.bind('<Command-q>', lambda e: self.on_closing())
     
     def load_default_settings(self):
-        """加载默认设置"""
+        """加载默认设置或上次保存的设置"""
         try:
-            self.settings.load_default()
-            self.update_status("已加载默认设置")
+            # 尝试加载上次的设置
+            last_settings = self.settings.load_default()
+            
+            if last_settings:
+                # 如果有上次的设置，应用到界面
+                if 'settings' in last_settings:
+                    # 这是完整的会话数据
+                    watermark_settings = last_settings['settings']
+                    self.settings.apply_watermark_settings(self, watermark_settings)
+                    self.update_status("已加载上次会话设置")
+                else:
+                    # 这是模板数据
+                    self.settings.apply_watermark_settings(self, last_settings)
+                    self.update_status("已加载默认模板设置")
+            else:
+                # 没有保存的设置，使用程序默认值
+                self.update_status("使用程序默认设置")
+                
         except Exception as e:
             self.update_status(f"加载设置失败: {e}")
+            print(f"加载设置详细错误: {e}")
     
     def update_status(self, message: str):
         """更新状态栏"""
@@ -316,10 +327,12 @@ class WatermarkApp:
     def on_closing(self):
         """窗口关闭事件"""
         try:
-            # 保存当前设置
-            self.settings.save_current()
-        except:
-            pass
+            # 获取并保存当前水印设置
+            current_watermark_settings = self.settings.get_current_watermark_settings(self)
+            if current_watermark_settings:
+                self.settings.save_current(current_watermark_settings)
+        except Exception as e:
+            print(f"保存设置失败: {e}")
         
         self.root.quit()
         self.root.destroy()

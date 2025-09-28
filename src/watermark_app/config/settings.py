@@ -426,3 +426,143 @@ class Settings:
         
         except Exception as e:
             print(f"清理备份失败: {e}")
+    
+    def load_default(self):
+        """加载默认设置或上次保存的设置"""
+        # 首先尝试加载上次保存的设置
+        if self.get('file.auto_save_settings', True):
+            last_settings_file = os.path.join(self.config_dir, "last_session.json")
+            if os.path.exists(last_settings_file):
+                try:
+                    with open(last_settings_file, 'r', encoding='utf-8') as f:
+                        last_settings = json.load(f)
+                    return last_settings
+                except Exception as e:
+                    print(f"加载上次会话设置失败: {e}")
+        
+        # 如果没有上次的设置或加载失败，尝试加载默认模板
+        default_template_file = os.path.join(self.templates_dir, "default.json")
+        if os.path.exists(default_template_file):
+            try:
+                return self.load_template("default")
+            except Exception as e:
+                print(f"加载默认模板失败: {e}")
+        
+        # 如果都没有，返回None（使用程序内置默认值）
+        return None
+    
+    def save_current(self, current_settings: Dict[str, Any] = None):
+        """保存当前会话设置"""
+        if not self.get('file.auto_save_settings', True):
+            return False
+        
+        try:
+            last_settings_file = os.path.join(self.config_dir, "last_session.json")
+            
+            # 如果没有提供设置，保存当前的设置状态
+            if current_settings is None:
+                current_settings = self.settings
+            
+            # 添加保存时间戳
+            save_data = {
+                'saved_at': datetime.now().isoformat(),
+                'settings': current_settings
+            }
+            
+            with open(last_settings_file, 'w', encoding='utf-8') as f:
+                json.dump(save_data, f, indent=2, ensure_ascii=False)
+            
+            return True
+        except Exception as e:
+            print(f"保存当前设置失败: {e}")
+            return False
+    
+    def get_current_watermark_settings(self, app) -> Dict[str, Any]:
+        """从应用程序获取当前水印设置"""
+        try:
+            watermark_panel = app.watermark_panel
+            
+            # 获取当前水印类型
+            watermark_type = watermark_panel.watermark_type.get()
+            
+            settings = {
+                'watermark_type': watermark_type,
+                'position': watermark_panel.position.get(),
+                'opacity': watermark_panel.opacity.get(),
+                'margin': watermark_panel.margin.get(),
+                'rotation': watermark_panel.rotation.get(),
+            }
+            
+            if watermark_type == 'text':
+                settings.update({
+                    'text_content': watermark_panel.text_content.get(),
+                    'font_size': watermark_panel.font_size.get(),
+                    'text_color': watermark_panel.text_color,
+                    'font_path': watermark_panel.font_path.get(),
+                    'shadow_enabled': watermark_panel.shadow_enabled.get(),
+                    'shadow_offset_x': watermark_panel.shadow_offset_x.get(),
+                    'shadow_offset_y': watermark_panel.shadow_offset_y.get(),
+                    'shadow_blur': watermark_panel.shadow_blur.get(),
+                    'shadow_color': watermark_panel.shadow_color,
+                })
+            elif watermark_type == 'image':
+                settings.update({
+                    'image_path': watermark_panel.image_path.get(),
+                    'image_scale': watermark_panel.image_scale.get(),
+                })
+            
+            return settings
+        except Exception as e:
+            print(f"获取当前水印设置失败: {e}")
+            return {}
+    
+    def apply_watermark_settings(self, app, settings: Dict[str, Any]):
+        """将设置应用到应用程序"""
+        try:
+            watermark_panel = app.watermark_panel
+            
+            # 应用基本设置
+            if 'watermark_type' in settings:
+                watermark_panel.watermark_type.set(settings['watermark_type'])
+            if 'position' in settings:
+                watermark_panel.position.set(settings['position'])
+            if 'opacity' in settings:
+                watermark_panel.opacity.set(settings['opacity'])
+            if 'margin' in settings:
+                watermark_panel.margin.set(settings['margin'])
+            if 'rotation' in settings:
+                watermark_panel.rotation.set(settings['rotation'])
+            
+            # 应用文本水印设置
+            if settings.get('watermark_type') == 'text':
+                if 'text_content' in settings:
+                    watermark_panel.text_content.set(settings['text_content'])
+                if 'font_size' in settings:
+                    watermark_panel.font_size.set(settings['font_size'])
+                if 'text_color' in settings:
+                    watermark_panel.text_color = settings['text_color']
+                if 'font_path' in settings:
+                    watermark_panel.font_path.set(settings['font_path'])
+                if 'shadow_enabled' in settings:
+                    watermark_panel.shadow_enabled.set(settings['shadow_enabled'])
+                if 'shadow_offset_x' in settings:
+                    watermark_panel.shadow_offset_x.set(settings['shadow_offset_x'])
+                if 'shadow_offset_y' in settings:
+                    watermark_panel.shadow_offset_y.set(settings['shadow_offset_y'])
+                if 'shadow_blur' in settings:
+                    watermark_panel.shadow_blur.set(settings['shadow_blur'])
+                if 'shadow_color' in settings:
+                    watermark_panel.shadow_color = settings['shadow_color']
+            
+            # 应用图片水印设置
+            elif settings.get('watermark_type') == 'image':
+                if 'image_path' in settings:
+                    watermark_panel.image_path.set(settings['image_path'])
+                if 'image_scale' in settings:
+                    watermark_panel.image_scale.set(settings['image_scale'])
+            
+            # 触发界面更新
+            watermark_panel.on_watermark_type_change()
+            
+        except Exception as e:
+            print(f"应用水印设置失败: {e}")

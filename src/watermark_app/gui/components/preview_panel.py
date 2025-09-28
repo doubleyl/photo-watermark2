@@ -101,6 +101,33 @@ class PreviewPanel(ttk.LabelFrame):
         self.canvas.bind('<B1-Motion>', self.on_canvas_drag)
         self.canvas.bind('<ButtonRelease-1>', self.on_canvas_release)
         self.canvas.bind('<Configure>', self.on_canvas_configure)
+        
+        # 添加鼠标滚轮支持
+        self.bind_mousewheel()
+    
+    def bind_mousewheel(self):
+        """绑定鼠标滚轮事件"""
+        def _on_mousewheel(event):
+            # 检查是否有图片显示且需要滚动
+            if self.current_image is not None:
+                # 检查事件来源，只在Canvas或合适的区域处理滚轮事件
+                widget = event.widget
+                widget_class = widget.winfo_class()
+                
+                # 如果是数值输入控件或其他交互控件，不处理滚轮事件
+                if widget_class in ['Spinbox', 'Entry', 'Scale', 'TSpinbox', 'TEntry', 'TScale', 'Combobox', 'TCombobox']:
+                    return
+                
+                # 只在Canvas或面板本身上处理滚轮事件
+                if widget == self.canvas or widget == self:
+                    # 根据Shift键决定滚动方向
+                    if event.state & 0x1:  # Shift键按下，水平滚动
+                        self.canvas.xview_scroll(int(-1*(event.delta/120)), "units")
+                    else:  # 垂直滚动
+                        self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        # 只绑定到Canvas，避免冲突
+        self.canvas.bind("<MouseWheel>", _on_mousewheel)
     
     def show_placeholder(self):
         """显示占位符"""
@@ -154,6 +181,8 @@ class PreviewPanel(ttk.LabelFrame):
                             text=watermark_settings.get('text', '水印'),
                             font_size=watermark_settings.get('font_size', 36),
                             font_path=watermark_settings.get('font_path', 'default'),
+                            font_bold=watermark_settings.get('font_bold', False),
+                            font_italic=watermark_settings.get('font_italic', False),
                             color=watermark_settings.get('color', '#FFFFFF'),
                             opacity=watermark_settings.get('opacity', 80),
                             position=position,
@@ -162,7 +191,10 @@ class PreviewPanel(ttk.LabelFrame):
                             shadow_enabled=watermark_settings.get('shadow_enabled', False),
                             shadow_offset=(watermark_settings.get('shadow_offset_x', 2), watermark_settings.get('shadow_offset_y', 2)),
                             shadow_blur=watermark_settings.get('shadow_blur', 4),
-                            shadow_color=watermark_settings.get('shadow_color', '#000000')
+                            shadow_color=watermark_settings.get('shadow_color', '#000000'),
+                            stroke_enabled=watermark_settings.get('stroke_enabled', False),
+                            stroke_width=watermark_settings.get('stroke_width', 2),
+                            stroke_color=watermark_settings.get('stroke_color', '#000000')
                         )
                     elif watermark_settings['type'] == 'image':
                         # 转换位置字符串为枚举
@@ -303,6 +335,9 @@ class PreviewPanel(ttk.LabelFrame):
             new_width = int(img_width * scale)
             new_height = int(img_height * scale)
         
+        # 存储缩放因子，用于拖拽计算
+        self.zoom_factor = scale
+        
         return self.current_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
     
     def on_zoom_change(self, event):
@@ -324,32 +359,28 @@ class PreviewPanel(ttk.LabelFrame):
         self.drag_start_x = event.x
         self.drag_start_y = event.y
         
-        # 获取当前水印偏移
+        # 获取当前水印偏移作为拖拽起始点
         if hasattr(self.app, 'watermark_panel'):
-            self.watermark_offset_x = self.app.watermark_panel.offset_x.get()
-            self.watermark_offset_y = self.app.watermark_panel.offset_y.get()
+            self.drag_start_offset_x = self.app.watermark_panel.offset_x.get()
+            self.drag_start_offset_y = self.app.watermark_panel.offset_y.get()
     
     def on_canvas_drag(self, event):
         """画布拖拽事件 - 实时更新水印位置"""
         if not self.dragging or self.current_image is None:
             return
             
-        # 计算拖拽距离
-        dx = event.x - self.drag_start_x
-        dy = event.y - self.drag_start_y
+        # 计算从拖拽开始点到当前位置的总偏移量（考虑缩放因子）
+        total_dx = (event.x - self.drag_start_x) / self.zoom_factor
+        total_dy = (event.y - self.drag_start_y) / self.zoom_factor
         
-        # 更新水印偏移
-        new_offset_x = self.watermark_offset_x + dx
-        new_offset_y = self.watermark_offset_y + dy
-        
-        # 限制偏移范围
-        new_offset_x = max(-200, min(200, new_offset_x))
-        new_offset_y = max(-200, min(200, new_offset_y))
+        # 基于拖拽起始偏移计算新的绝对位置（移除所有位置限制）
+        new_offset_x = self.drag_start_offset_x + total_dx
+        new_offset_y = self.drag_start_offset_y + total_dy
         
         # 更新水印面板的偏移值
         if hasattr(self.app, 'watermark_panel'):
-            self.app.watermark_panel.offset_x.set(new_offset_x)
-            self.app.watermark_panel.offset_y.set(new_offset_y)
+            self.app.watermark_panel.offset_x.set(int(new_offset_x))
+            self.app.watermark_panel.offset_y.set(int(new_offset_y))
             
             # 实时更新预览
             self.refresh_preview()

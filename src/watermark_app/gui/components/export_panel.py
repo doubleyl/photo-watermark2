@@ -13,6 +13,7 @@ from PIL import Image
 
 from ...core import ImageProcessor, WatermarkManager, FileManager
 from ...utils import show_error, show_info, ProgressTracker
+from .progress_dialog import ProgressDialog
 
 
 class ExportPanel(ttk.LabelFrame):
@@ -25,7 +26,7 @@ class ExportPanel(ttk.LabelFrame):
         # 导出设置变量
         self.output_format = tk.StringVar(value="PNG")
         self.output_folder = tk.StringVar()
-        self.naming_rule = tk.StringVar(value="original")
+        self.naming_rule = tk.StringVar(value="suffix")  # 默认使用后缀，更安全
         self.custom_prefix = tk.StringVar(value="wm_")
         self.custom_suffix = tk.StringVar(value="_watermarked")
         self.jpeg_quality = tk.IntVar(value=95)
@@ -33,19 +34,23 @@ class ExportPanel(ttk.LabelFrame):
         self.resize_width = tk.IntVar(value=1920)
         self.resize_height = tk.IntVar(value=1080)
         self.resize_mode = tk.StringVar(value="width")
+        self.allow_overwrite = tk.BooleanVar(value=False)  # 新增：是否允许覆盖原文件
+        
+        # 进度弹窗
+        self.progress_dialog = None
         
         self.setup_ui()
     
     def setup_ui(self):
         """设置用户界面"""
         # 输出格式
-        format_frame = ttk.Frame(self)
-        format_frame.pack(fill=tk.X, pady=(0, 10))
+        self.format_frame = ttk.Frame(self)
+        self.format_frame.pack(fill=tk.X, pady=(0, 10))
         
-        ttk.Label(format_frame, text="输出格式:").pack(side=tk.LEFT)
+        ttk.Label(self.format_frame, text="输出格式:").pack(side=tk.LEFT)
         
         format_combo = ttk.Combobox(
-            format_frame,
+            self.format_frame,
             textvariable=self.output_format,
             values=["PNG", "JPEG"],
             state="readonly",
@@ -140,6 +145,16 @@ class ExportPanel(ttk.LabelFrame):
         
         self.quality_frame.columnconfigure(1, weight=1)
         
+        # 安全设置
+        safety_frame = ttk.LabelFrame(self, text="安全设置", padding=3)
+        safety_frame.pack(fill=tk.X, pady=(0, 8))
+        
+        ttk.Checkbutton(
+            safety_frame,
+            text="允许覆盖原文件（不推荐）",
+            variable=self.allow_overwrite
+        ).pack(anchor=tk.W)
+        
         ttk.Checkbutton(
             resize_frame,
             text="启用尺寸调整",
@@ -182,24 +197,25 @@ class ExportPanel(ttk.LabelFrame):
         export_frame = ttk.Frame(self)
         export_frame.pack(fill=tk.X, pady=(8, 0))
         
+        # 导出按钮容器
+        button_frame = ttk.Frame(export_frame)
+        button_frame.pack(fill=tk.X)
+        
         self.export_button = ttk.Button(
-            export_frame,
+            button_frame,
             text="开始导出",
             command=self.start_export,
             style="Accent.TButton"
         )
-        self.export_button.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.export_button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 2))
         
-        # 进度条
-        self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(
-            export_frame,
-            variable=self.progress_var,
-            maximum=100
+        # 批量导出按钮
+        self.batch_export_button = ttk.Button(
+            button_frame,
+            text="批量导出",
+            command=self.start_batch_export
         )
-        
-        # 状态标签
-        self.status_label = ttk.Label(self, text="")
+        self.batch_export_button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
         
         # 初始化界面状态
         self.on_format_change()
@@ -267,38 +283,131 @@ class ExportPanel(ttk.LabelFrame):
             messagebox.showerror("错误", "请先导入图片文件")
             return False
         
-        # 检查输出文件夹是否与原文件夹相同
+        # 检查覆盖风险
         image_files = self.app.image_list_panel.get_all_images()
         output_folder = os.path.abspath(self.output_folder.get())
         
+        # 检查是否可能覆盖原文件
+        potential_overwrites = []
         for image_file in image_files:
             image_folder = os.path.abspath(os.path.dirname(image_file))
-            if image_folder == output_folder:
+            output_filename = self.generate_output_filename(image_file)
+            output_path = os.path.join(output_folder, output_filename)
+            
+            # 检查是否会覆盖原文件
+            if os.path.abspath(image_file) == os.path.abspath(output_path):
+                potential_overwrites.append(os.path.basename(image_file))
+            # 检查是否会覆盖其他已存在的文件
+            elif os.path.exists(output_path):
+                potential_overwrites.append(output_filename)
+        
+        if potential_overwrites:
+            if not self.allow_overwrite.get():
+                messagebox.showerror(
+                    "安全警告", 
+                    f"检测到以下文件可能被覆盖：\n\n" + 
+                    "\n".join(potential_overwrites[:5]) + 
+                    ("\n..." if len(potential_overwrites) > 5 else "") +
+                    f"\n\n请更改输出文件夹或文件命名规则，\n或在安全设置中允许覆盖文件。"
+                )
+                return False
+            else:
                 if not messagebox.askyesno(
-                    "警告", 
-                    "输出文件夹与原文件夹相同，可能会覆盖原文件。是否继续？"
+                    "覆盖确认", 
+                    f"将覆盖 {len(potential_overwrites)} 个文件。\n确定要继续吗？"
                 ):
                     return False
-                break
         
         return True
     
     def start_export(self):
-        """开始导出"""
+        """开始导出当前选中的图片"""
+        # 检查是否有选中的图片
+        current_image = self.app.image_list_panel.get_current_image()
+        if not current_image:
+            messagebox.showwarning("警告", "请先选择要导出的图片")
+            return
+            
         if not self.validate_settings():
             return
         
         # 禁用导出按钮
         self.export_button.configure(state=tk.DISABLED, text="导出中...")
+        self.batch_export_button.configure(state=tk.DISABLED)
         
-        # 显示进度条
-        self.progress_bar.pack(fill=tk.X, pady=(5, 0))
-        self.status_label.pack(fill=tk.X, pady=(5, 0))
+        # 显示进度弹窗
+        self.progress_dialog = ProgressDialog(
+            self.app.root, 
+            title="导出进度",
+            width=400,
+            height=150
+        )
+        self.progress_dialog.show()
+        
+        # 在后台线程中执行导出
+        export_thread = threading.Thread(target=self.export_single_image, args=(current_image,))
+        export_thread.daemon = True
+        export_thread.start()
+    
+    def start_batch_export(self):
+        """开始批量导出所有图片"""
+        # 检查是否有图片
+        image_files = self.app.image_list_panel.get_all_images()
+        if not image_files:
+            messagebox.showwarning("警告", "请先导入要导出的图片")
+            return
+            
+        if not self.validate_settings():
+            return
+        
+        # 禁用导出按钮
+        self.export_button.configure(state=tk.DISABLED)
+        self.batch_export_button.configure(state=tk.DISABLED, text="批量导出中...")
+        
+        # 显示进度弹窗
+        self.progress_dialog = ProgressDialog(
+            self.app.root, 
+            title="批量导出进度",
+            width=400,
+            height=150
+        )
+        self.progress_dialog.show()
         
         # 在后台线程中执行导出
         export_thread = threading.Thread(target=self.export_images)
         export_thread.daemon = True
         export_thread.start()
+    
+    def export_single_image(self, image_file):
+        """导出单张图片（后台线程）"""
+        try:
+            # 更新状态
+            self.update_progress(0, f"正在处理: {os.path.basename(image_file)}")
+            
+            # 处理图片
+            self.process_single_image(image_file)
+            
+            # 完成
+            self.update_progress(100, "导出完成")
+            
+            # 显示完成消息
+            self.app.root.after(
+                0,
+                lambda: messagebox.showinfo(
+                    "导出完成",
+                    f"成功导出图片到:\n{self.output_folder.get()}"
+                )
+            )
+            
+        except Exception as e:
+            self.app.root.after(
+                0,
+                lambda: messagebox.showerror("导出失败", f"导出过程中发生错误: {e}")
+            )
+        
+        finally:
+            # 恢复界面
+            self.app.root.after(0, self.reset_export_ui)
     
     def export_images(self):
         """导出图片（后台线程）"""
@@ -428,13 +537,15 @@ class ExportPanel(ttk.LabelFrame):
     
     def _update_progress_ui(self, value: float, status: str):
         """更新进度界面"""
-        self.progress_var.set(value)
-        self.status_label.config(text=status)
-        self.app.root.update_idletasks()
+        if self.progress_dialog:
+            self.progress_dialog.update_progress(value, status)
     
     def reset_export_ui(self):
         """重置导出界面"""
         self.export_button.configure(state=tk.NORMAL, text="开始导出")
-        self.progress_bar.pack_forget()
-        self.status_label.pack_forget()
-        self.progress_var.set(0)
+        self.batch_export_button.configure(state=tk.NORMAL, text="批量导出")
+        
+        # 关闭进度弹窗
+        if self.progress_dialog:
+            self.progress_dialog.close()
+            self.progress_dialog = None

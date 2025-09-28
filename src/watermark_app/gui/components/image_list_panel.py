@@ -61,19 +61,36 @@ class ImageListPanel(ttk.LabelFrame):
         list_frame = ttk.Frame(self)
         list_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 创建列表框和滚动条
-        self.listbox = tk.Listbox(
+        # 创建Treeview来显示缩略图和文件名 - 设置固定高度为4行，为水印设置留出更多空间
+        self.tree = ttk.Treeview(
             list_frame,
-            selectmode=tk.SINGLE,
-            height=10
+            columns=('filename', 'size'),
+            show='tree headings',
+            selectmode='browse',
+            height=4
         )
         
+        # 设置行高以适应缩略图
+        style = ttk.Style()
+        style.configure("Treeview", rowheight=35)  # 进一步缩小行高为35像素，最大化压缩显示空间
+        
+        # 设置列标题
+        self.tree.heading('#0', text='缩略图')
+        self.tree.heading('filename', text='文件名')
+        self.tree.heading('size', text='大小')
+        
+        # 设置列宽
+        self.tree.column('#0', width=120, minwidth=120)
+        self.tree.column('filename', width=200, minwidth=150)
+        self.tree.column('size', width=80, minwidth=60)
+        
+        # 创建滚动条
         scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL)
-        self.listbox.config(yscrollcommand=scrollbar.set)
-        scrollbar.config(command=self.listbox.yview)
+        self.tree.config(yscrollcommand=scrollbar.set)
+        scrollbar.config(command=self.tree.yview)
         
         # 布局
-        self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # 信息标签
@@ -82,13 +99,18 @@ class ImageListPanel(ttk.LabelFrame):
     
     def setup_bindings(self):
         """设置事件绑定"""
-        self.listbox.bind('<<ListboxSelect>>', self.on_selection_change)
-        self.listbox.bind('<Double-Button-1>', self.on_double_click)
+        self.tree.bind('<<TreeviewSelect>>', self.on_selection_change)
+        self.tree.bind('<Double-Button-1>', self.on_double_click)
+        
+        # 只绑定鼠标滚轮事件到TreeView，避免冲突
+        self.tree.bind("<MouseWheel>", self.on_mousewheel)
+        self.tree.bind("<Button-4>", self.on_mousewheel)  # Linux
+        self.tree.bind("<Button-5>", self.on_mousewheel)  # Linux
         
         # 设置拖拽支持
         if DND_FILES is not None:
-            self.listbox.drop_target_register(DND_FILES)
-            self.listbox.dnd_bind('<<Drop>>', self.on_drop)
+            self.tree.drop_target_register(DND_FILES)
+            self.tree.dnd_bind('<<Drop>>', self.on_drop)
             
             # 为整个面板也添加拖拽支持
             self.drop_target_register(DND_FILES)
@@ -106,18 +128,38 @@ class ImageListPanel(ttk.LabelFrame):
                     if file_path not in self.image_files:
                         self.image_files.append(file_path)
                         filename = os.path.basename(file_path)
-                        self.listbox.insert(tk.END, filename)
-                        added_count += 1
                         
                         # 生成缩略图
                         self.generate_thumbnail(file_path)
+                        
+                        # 获取文件大小
+                        try:
+                            file_size = os.path.getsize(file_path)
+                            size_str = format_file_size(file_size)
+                        except:
+                            size_str = "未知"
+                        
+                        # 在Treeview中添加项目
+                        item_id = self.tree.insert('', 'end', 
+                                                 text='',  # 缩略图将在generate_thumbnail中设置
+                                                 values=(filename, size_str),
+                                                 tags=(file_path,))
+                        
+                        # 如果缩略图已生成，立即设置
+                        if file_path in self.thumbnails:
+                            self.tree.item(item_id, image=self.thumbnails[file_path])
+                        
+                        added_count += 1
         
         if added_count > 0:
             self.update_info()
             # 选择第一个图片
-            if self.listbox.size() == added_count:
-                self.listbox.selection_set(0)
-                self.on_selection_change(None)
+            if len(self.image_files) == added_count:  # 第一次添加图片
+                items = self.tree.get_children()
+                if items:
+                    self.tree.selection_set(items[0])
+                    self.tree.focus(items[0])
+                    self.on_selection_change(None)
         
         return added_count
     
@@ -155,32 +197,60 @@ class ImageListPanel(ttk.LabelFrame):
         """生成缩略图"""
         try:
             with Image.open(file_path) as img:
-                # 创建缩略图
-                img.thumbnail((100, 100), Image.Resampling.LANCZOS)
+                # 创建缩略图 (调整尺寸以适应Treeview行高)
+                img.thumbnail((40, 30), Image.Resampling.LANCZOS)
                 # 转换为PhotoImage
                 photo = ImageTk.PhotoImage(img)
                 self.thumbnails[file_path] = photo
+                
+                # 更新Treeview中对应项目的图标
+                for item in self.tree.get_children():
+                    tags = self.tree.item(item, 'tags')
+                    if tags and tags[0] == file_path:
+                        # 设置缩略图到第一列
+                        self.tree.set(item, '#0', '')  # 清空文本
+                        # 由于Treeview的限制，我们需要使用item方法来设置图像
+                        self.tree.item(item, image=photo)
+                        break
+                        
         except Exception as e:
             print(f"生成缩略图失败 {file_path}: {e}")
     
     def on_selection_change(self, event):
         """选择变化事件"""
-        selection = self.listbox.curselection()
+        selection = self.tree.selection()
         if selection:
-            index = selection[0]
-            self.current_selection = index
-            file_path = self.image_files[index]
-            
-            # 更新信息显示
-            self.update_selection_info(file_path)
-            
-            # 通知预览面板更新
-            if hasattr(self.app, 'preview_panel'):
-                self.app.preview_panel.load_image(file_path)
+            item = selection[0]
+            tags = self.tree.item(item, 'tags')
+            if tags:
+                file_path = tags[0]
+                # 找到对应的索引
+                try:
+                    index = self.image_files.index(file_path)
+                    self.current_selection = index
+                    
+                    # 更新信息显示
+                    self.update_selection_info(file_path)
+                    
+                    # 通知预览面板更新
+                    if hasattr(self.app, 'preview_panel'):
+                        self.app.preview_panel.load_image(file_path)
+                except ValueError:
+                    pass
     
     def on_double_click(self, event):
         """双击事件处理"""
         self.app.preview_panel.load_current_image()
+    
+    def on_mousewheel(self, event):
+        """鼠标滚轮事件处理"""
+        # 根据不同平台处理滚轮事件
+        if event.num == 4 or event.delta > 0:
+            # 向上滚动
+            self.tree.yview_scroll(-1, "units")
+        elif event.num == 5 or event.delta < 0:
+            # 向下滚动
+            self.tree.yview_scroll(1, "units")
     
     def on_drop(self, event):
         """拖拽文件处理"""
@@ -323,7 +393,9 @@ class ImageListPanel(ttk.LabelFrame):
         if self.image_files and messagebox.askyesno("确认", "确定要清空所有图片吗？"):
             self.image_files.clear()
             self.thumbnails.clear()
-            self.listbox.delete(0, tk.END)
+            # 清空Treeview中的所有项目
+            for item in self.tree.get_children():
+                self.tree.delete(item)
             self.current_selection = None
             self.update_info()
             
@@ -347,23 +419,35 @@ class ImageListPanel(ttk.LabelFrame):
     
     def remove_current_image(self):
         """移除当前选择的图片"""
-        if self.current_selection is not None:
-            file_path = self.image_files[self.current_selection]
-            self.image_files.pop(self.current_selection)
-            self.listbox.delete(self.current_selection)
-            
-            # 清理缩略图
-            if file_path in self.thumbnails:
-                del self.thumbnails[file_path]
-            
-            # 更新选择
-            if self.image_files:
-                new_index = min(self.current_selection, len(self.image_files) - 1)
-                self.listbox.selection_set(new_index)
-                self.current_selection = new_index
-                self.on_selection_change(None)
-            else:
-                self.current_selection = None
-                self.update_info()
-                if hasattr(self.app, 'preview_panel'):
-                    self.app.preview_panel.clear_preview()
+        selection = self.tree.selection()
+        if selection:
+            item = selection[0]
+            tags = self.tree.item(item, 'tags')
+            if tags:
+                file_path = tags[0]
+                
+                # 从列表中移除
+                if file_path in self.image_files:
+                    self.image_files.remove(file_path)
+                
+                # 从Treeview中删除
+                self.tree.delete(item)
+                
+                # 清理缩略图
+                if file_path in self.thumbnails:
+                    del self.thumbnails[file_path]
+                
+                # 更新选择
+                if self.image_files:
+                    items = self.tree.get_children()
+                    if items:
+                        self.tree.selection_set(items[0])
+                        self.tree.focus(items[0])
+                        self.on_selection_change(None)
+                else:
+                    self.current_selection = None
+                    self.update_info()
+                    
+                    # 清空预览
+                    if hasattr(self.app, 'preview_panel'):
+                        self.app.preview_panel.clear_preview()

@@ -26,6 +26,8 @@ class WatermarkPanel(ttk.LabelFrame):
         self.text_content = tk.StringVar(value="水印")
         self.font_size = tk.IntVar(value=36)
         self.font_family = tk.StringVar(value="苹方 (PingFang SC)")  # 默认中文字体
+        self.font_bold = tk.BooleanVar(value=False)  # 粗体选项
+        self.font_italic = tk.BooleanVar(value=False)  # 斜体选项
         self.text_color = tk.StringVar(value="#FFFFFF")
         self.opacity = tk.IntVar(value=80)
         self.position = tk.StringVar(value="bottom_right")
@@ -42,6 +44,11 @@ class WatermarkPanel(ttk.LabelFrame):
         self.shadow_blur = tk.IntVar(value=4)
         self.shadow_color = tk.StringVar(value="#000000")
         
+        # 描边效果变量
+        self.stroke_enabled = tk.BooleanVar(value=False)
+        self.stroke_width = tk.IntVar(value=2)
+        self.stroke_color = tk.StringVar(value="#000000")
+        
         # 获取可用字体
         from ...core import WatermarkManager
         self.watermark_manager = WatermarkManager()
@@ -52,20 +59,9 @@ class WatermarkPanel(ttk.LabelFrame):
     
     def setup_ui(self):
         """设置用户界面"""
-        # 启用水印复选框
-        enable_frame = ttk.Frame(self)
-        enable_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        ttk.Checkbutton(
-            enable_frame,
-            text="启用水印",
-            variable=self.watermark_enabled,
-            command=self.on_watermark_toggle
-        ).pack(side=tk.LEFT)
-        
         # 水印类型选择
-        type_frame = ttk.LabelFrame(self, text="水印类型", padding=5)
-        type_frame.pack(fill=tk.X, pady=(0, 10))
+        type_frame = ttk.Frame(self)
+        type_frame.pack(fill=tk.X, pady=(0, 5))
         
         ttk.Radiobutton(
             type_frame,
@@ -85,7 +81,7 @@ class WatermarkPanel(ttk.LabelFrame):
         
         # 创建笔记本控件用于切换设置
         self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        self.notebook.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         
         # 文本水印设置
         self.text_frame = ttk.Frame(self.notebook)
@@ -107,9 +103,9 @@ class WatermarkPanel(ttk.LabelFrame):
         self.notebook.add(self.advanced_frame, text="高级设置")
         self.setup_advanced_settings()
         
-        # 模板管理
-        template_frame = ttk.LabelFrame(self, text="模板管理", padding=5)
-        template_frame.pack(fill=tk.X)
+        # 模板操作按钮（直接放在面板底部，减小间距）
+        template_frame = ttk.Frame(self)
+        template_frame.pack(fill=tk.X, pady=(2, 0))
         
         ttk.Button(
             template_frame,
@@ -132,12 +128,12 @@ class WatermarkPanel(ttk.LabelFrame):
     def setup_text_settings(self):
         """设置文本水印选项"""
         # 文本内容
-        ttk.Label(self.text_frame, text="文本内容:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.text_frame, text="文本内容:").grid(row=0, column=0, sticky=tk.W, pady=1)
         text_entry = ttk.Entry(self.text_frame, textvariable=self.text_content, width=20)
-        text_entry.grid(row=0, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=(5, 0))
+        text_entry.grid(row=0, column=1, columnspan=2, sticky=tk.EW, pady=1, padx=(5, 0))
         
         # 字体选择
-        ttk.Label(self.text_frame, text="字体:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.text_frame, text="字体:").grid(row=1, column=0, sticky=tk.W, pady=1)
         font_combo = ttk.Combobox(
             self.text_frame,
             textvariable=self.font_family,
@@ -145,11 +141,11 @@ class WatermarkPanel(ttk.LabelFrame):
             state="readonly",
             width=18
         )
-        font_combo.grid(row=1, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=(5, 0))
+        font_combo.grid(row=1, column=1, columnspan=2, sticky=tk.EW, pady=1, padx=(5, 0))
         font_combo.bind('<<ComboboxSelected>>', self.on_setting_change)
         
         # 字体大小
-        ttk.Label(self.text_frame, text="字体大小:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.text_frame, text="字体大小:").grid(row=2, column=0, sticky=tk.W, pady=1)
         font_scale = ttk.Scale(
             self.text_frame,
             from_=12,
@@ -158,21 +154,43 @@ class WatermarkPanel(ttk.LabelFrame):
             orient=tk.HORIZONTAL,
             command=self.on_setting_change
         )
-        font_scale.grid(row=2, column=1, sticky=tk.EW, pady=2, padx=(5, 0))
+        font_scale.grid(row=2, column=1, sticky=tk.EW, pady=1, padx=(5, 0))
         
         font_label = ttk.Label(self.text_frame, text="36")
-        font_label.grid(row=2, column=2, pady=2, padx=(5, 0))
+        font_label.grid(row=2, column=2, pady=1, padx=(5, 0))
         
         # 绑定字体大小显示更新
         def update_font_label(*args):
             font_label.config(text=str(self.font_size.get()))
         self.font_size.trace('w', update_font_label)
         
+        # 字体样式
+        ttk.Label(self.text_frame, text="字体样式:").grid(row=3, column=0, sticky=tk.W, pady=1)
+        
+        style_frame = ttk.Frame(self.text_frame)
+        style_frame.grid(row=3, column=1, columnspan=2, sticky=tk.EW, pady=1, padx=(5, 0))
+        
+        bold_check = ttk.Checkbutton(
+            style_frame,
+            text="粗体",
+            variable=self.font_bold,
+            command=self.on_setting_change
+        )
+        bold_check.pack(side=tk.LEFT, padx=(0, 10))
+        
+        italic_check = ttk.Checkbutton(
+            style_frame,
+            text="斜体",
+            variable=self.font_italic,
+            command=self.on_setting_change
+        )
+        italic_check.pack(side=tk.LEFT)
+        
         # 文本颜色
-        ttk.Label(self.text_frame, text="文本颜色:").grid(row=3, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.text_frame, text="文本颜色:").grid(row=4, column=0, sticky=tk.W, pady=1)
         
         color_frame = ttk.Frame(self.text_frame)
-        color_frame.grid(row=3, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=(5, 0))
+        color_frame.grid(row=4, column=1, columnspan=2, sticky=tk.EW, pady=1, padx=(5, 0))
         
         self.color_button = tk.Button(
             color_frame,
@@ -191,10 +209,10 @@ class WatermarkPanel(ttk.LabelFrame):
     def setup_image_settings(self):
         """设置图片水印选项"""
         # 图片路径
-        ttk.Label(self.image_frame, text="水印图片:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.image_frame, text="水印图片:").grid(row=0, column=0, sticky=tk.W, pady=1)
         
         path_frame = ttk.Frame(self.image_frame)
-        path_frame.grid(row=0, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=(5, 0))
+        path_frame.grid(row=0, column=1, columnspan=2, sticky=tk.EW, pady=1, padx=(5, 0))
         
         self.path_entry = ttk.Entry(path_frame, textvariable=self.image_path, state="readonly")
         self.path_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -207,7 +225,7 @@ class WatermarkPanel(ttk.LabelFrame):
         ).pack(side=tk.RIGHT, padx=(5, 0))
         
         # 图片缩放
-        ttk.Label(self.image_frame, text="缩放比例:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.image_frame, text="缩放比例:").grid(row=1, column=0, sticky=tk.W, pady=1)
         
         scale_scale = ttk.Scale(
             self.image_frame,
@@ -217,10 +235,10 @@ class WatermarkPanel(ttk.LabelFrame):
             orient=tk.HORIZONTAL,
             command=self.on_setting_change
         )
-        scale_scale.grid(row=1, column=1, sticky=tk.EW, pady=2, padx=(5, 0))
+        scale_scale.grid(row=1, column=1, sticky=tk.EW, pady=1, padx=(5, 0))
         
         scale_label = ttk.Label(self.image_frame, text="20%")
-        scale_label.grid(row=1, column=2, pady=2, padx=(5, 0))
+        scale_label.grid(row=1, column=2, pady=1, padx=(5, 0))
         
         # 绑定缩放比例显示更新
         def update_scale_label(*args):
@@ -233,10 +251,10 @@ class WatermarkPanel(ttk.LabelFrame):
     def setup_position_settings(self):
         """设置位置选项"""
         # 预设位置（九宫格）
-        ttk.Label(self.position_frame, text="预设位置:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.position_frame, text="预设位置:").grid(row=0, column=0, sticky=tk.W, pady=1)
         
         position_frame = ttk.Frame(self.position_frame)
-        position_frame.grid(row=0, column=1, columnspan=3, sticky=tk.EW, pady=2, padx=(5, 0))
+        position_frame.grid(row=0, column=1, columnspan=3, sticky=tk.EW, pady=1, padx=(5, 0))
         
         positions = [
             ("左上", "top_left"), ("上中", "top_center"), ("右上", "top_right"),
@@ -253,10 +271,10 @@ class WatermarkPanel(ttk.LabelFrame):
                 variable=self.position,
                 value=value,
                 command=self.on_setting_change
-            ).grid(row=row, column=col, sticky=tk.W, padx=5, pady=2)
+            ).grid(row=row, column=col, sticky=tk.W, padx=5, pady=1)
         
         # 透明度
-        ttk.Label(self.position_frame, text="透明度:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.position_frame, text="透明度:").grid(row=1, column=0, sticky=tk.W, pady=1)
         
         opacity_scale = ttk.Scale(
             self.position_frame,
@@ -266,10 +284,10 @@ class WatermarkPanel(ttk.LabelFrame):
             orient=tk.HORIZONTAL,
             command=self.on_setting_change
         )
-        opacity_scale.grid(row=1, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=(5, 0))
+        opacity_scale.grid(row=1, column=1, columnspan=2, sticky=tk.EW, pady=1, padx=(5, 0))
         
         opacity_label = ttk.Label(self.position_frame, text="80%")
-        opacity_label.grid(row=1, column=3, pady=2, padx=(5, 0))
+        opacity_label.grid(row=1, column=3, pady=1, padx=(5, 0))
         
         # 绑定透明度显示更新
         def update_opacity_label(*args):
@@ -308,7 +326,7 @@ class WatermarkPanel(ttk.LabelFrame):
     def setup_advanced_settings(self):
         """设置高级功能选项"""
         # 旋转角度
-        ttk.Label(self.advanced_frame, text="旋转角度:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.advanced_frame, text="旋转角度:").grid(row=0, column=0, sticky=tk.W, pady=1)
         
         rotation_scale = ttk.Scale(
             self.advanced_frame,
@@ -318,10 +336,10 @@ class WatermarkPanel(ttk.LabelFrame):
             orient=tk.HORIZONTAL,
             command=self.on_setting_change
         )
-        rotation_scale.grid(row=0, column=1, sticky=tk.EW, pady=2, padx=(5, 0))
+        rotation_scale.grid(row=0, column=1, sticky=tk.EW, pady=1, padx=(5, 0))
         
         rotation_label = ttk.Label(self.advanced_frame, text="0°")
-        rotation_label.grid(row=0, column=2, pady=2, padx=(5, 0))
+        rotation_label.grid(row=0, column=2, pady=1, padx=(5, 0))
         
         # 绑定旋转角度显示更新
         def update_rotation_label(*args):
@@ -334,13 +352,13 @@ class WatermarkPanel(ttk.LabelFrame):
             text="启用阴影",
             variable=self.shadow_enabled,
             command=self.on_shadow_toggle
-        ).grid(row=1, column=0, columnspan=3, sticky=tk.W, pady=(5, 5))
+        ).grid(row=1, column=0, columnspan=3, sticky=tk.W, pady=(3, 3))
         
         # 阴影偏移
-        ttk.Label(self.advanced_frame, text="阴影偏移:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.advanced_frame, text="阴影偏移:").grid(row=2, column=0, sticky=tk.W, pady=1)
         
         shadow_offset_frame = ttk.Frame(self.advanced_frame)
-        shadow_offset_frame.grid(row=2, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=(5, 0))
+        shadow_offset_frame.grid(row=2, column=1, columnspan=2, sticky=tk.EW, pady=1, padx=(5, 0))
         
         ttk.Label(shadow_offset_frame, text="X:").pack(side=tk.LEFT)
         ttk.Spinbox(
@@ -363,7 +381,7 @@ class WatermarkPanel(ttk.LabelFrame):
         ).pack(side=tk.LEFT, padx=(2, 0))
         
         # 阴影模糊
-        ttk.Label(self.advanced_frame, text="模糊半径:").grid(row=3, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.advanced_frame, text="模糊半径:").grid(row=3, column=0, sticky=tk.W, pady=1)
         
         blur_scale = ttk.Scale(
             self.advanced_frame,
@@ -373,10 +391,10 @@ class WatermarkPanel(ttk.LabelFrame):
             orient=tk.HORIZONTAL,
             command=self.on_setting_change
         )
-        blur_scale.grid(row=3, column=1, sticky=tk.EW, pady=2, padx=(5, 0))
+        blur_scale.grid(row=3, column=1, sticky=tk.EW, pady=1, padx=(5, 0))
         
         blur_label = ttk.Label(self.advanced_frame, text="4px")
-        blur_label.grid(row=3, column=2, pady=2, padx=(5, 0))
+        blur_label.grid(row=3, column=2, pady=1, padx=(5, 0))
         
         # 绑定模糊半径显示更新
         def update_blur_label(*args):
@@ -384,10 +402,10 @@ class WatermarkPanel(ttk.LabelFrame):
         self.shadow_blur.trace('w', update_blur_label)
         
         # 阴影颜色
-        ttk.Label(self.advanced_frame, text="阴影颜色:").grid(row=4, column=0, sticky=tk.W, pady=2)
+        ttk.Label(self.advanced_frame, text="阴影颜色:").grid(row=4, column=0, sticky=tk.W, pady=1)
         
         shadow_color_frame = ttk.Frame(self.advanced_frame)
-        shadow_color_frame.grid(row=4, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=(5, 0))
+        shadow_color_frame.grid(row=4, column=1, columnspan=2, sticky=tk.EW, pady=1, padx=(5, 0))
         
         self.shadow_color_button = tk.Button(
             shadow_color_frame,
@@ -401,11 +419,59 @@ class WatermarkPanel(ttk.LabelFrame):
         
         ttk.Label(shadow_color_frame, textvariable=self.shadow_color).pack(side=tk.LEFT, padx=(10, 0))
         
+        # 描边设置
+        ttk.Checkbutton(
+            self.advanced_frame,
+            text="启用描边",
+            variable=self.stroke_enabled,
+            command=self.on_stroke_toggle
+        ).grid(row=5, column=0, columnspan=3, sticky=tk.W, pady=(5, 3))
+        
+        # 描边宽度
+        ttk.Label(self.advanced_frame, text="描边宽度:").grid(row=6, column=0, sticky=tk.W, pady=1)
+        
+        stroke_width_scale = ttk.Scale(
+            self.advanced_frame,
+            from_=1,
+            to=10,
+            variable=self.stroke_width,
+            orient=tk.HORIZONTAL,
+            command=self.on_setting_change
+        )
+        stroke_width_scale.grid(row=6, column=1, sticky=tk.EW, pady=1, padx=(5, 0))
+        
+        stroke_width_label = ttk.Label(self.advanced_frame, text="2px")
+        stroke_width_label.grid(row=6, column=2, pady=1, padx=(5, 0))
+        
+        # 绑定描边宽度显示更新
+        def update_stroke_width_label(*args):
+            stroke_width_label.config(text=f"{self.stroke_width.get()}px")
+        self.stroke_width.trace('w', update_stroke_width_label)
+        
+        # 描边颜色
+        ttk.Label(self.advanced_frame, text="描边颜色:").grid(row=7, column=0, sticky=tk.W, pady=1)
+        
+        stroke_color_frame = ttk.Frame(self.advanced_frame)
+        stroke_color_frame.grid(row=7, column=1, columnspan=2, sticky=tk.EW, pady=1, padx=(5, 0))
+        
+        self.stroke_color_button = tk.Button(
+            stroke_color_frame,
+            text="选择颜色",
+            bg="black",
+            fg="white",
+            command=self.choose_stroke_color,
+            width=10
+        )
+        self.stroke_color_button.pack(side=tk.LEFT)
+        
+        ttk.Label(stroke_color_frame, textvariable=self.stroke_color).pack(side=tk.LEFT, padx=(10, 0))
+        
         # 配置列权重
         self.advanced_frame.columnconfigure(1, weight=1)
         
-        # 初始化阴影控件状态
+        # 初始化阴影和描边控件状态
         self.on_shadow_toggle()
+        self.on_stroke_toggle()
     
     def setup_bindings(self):
         """设置事件绑定"""
@@ -473,6 +539,32 @@ class WatermarkPanel(ttk.LabelFrame):
         
         self.on_setting_change()
     
+    def on_stroke_toggle(self):
+        """描边启用/禁用切换"""
+        enabled = self.stroke_enabled.get()
+        
+        # 启用/禁用描边相关控件
+        state = tk.NORMAL if enabled else tk.DISABLED
+        
+        # 查找描边设置相关控件并设置状态
+        for child in self.advanced_frame.winfo_children():
+            if isinstance(child, ttk.Label):
+                text = child.cget('text')
+                if text in ["描边宽度:", "描边颜色:"]:
+                    child.configure(state=state)
+            elif isinstance(child, ttk.Scale):
+                # 检查是否是描边宽度滑块
+                if child.cget('from') == 1 and child.cget('to') == 10:
+                    child.configure(state=state)
+            elif isinstance(child, ttk.Frame):
+                # 检查是否是描边颜色框架
+                for frame_child in child.winfo_children():
+                    if isinstance(frame_child, tk.Button) and frame_child.cget('command') == self.choose_stroke_color:
+                        self.set_widget_state(child, state)
+                        break
+        
+        self.on_setting_change()
+    
     def choose_color(self):
         """选择颜色"""
         # 获取当前颜色，如果是默认的黑色，使用一个更明显的初始颜色
@@ -529,6 +621,34 @@ class WatermarkPanel(ttk.LabelFrame):
             self.shadow_color_button.config(bg=bg_color, fg=text_color)
             self.on_setting_change()
     
+    def choose_stroke_color(self):
+        """选择描边颜色"""
+        # 获取当前颜色，如果是默认的黑色，使用一个更明显的初始颜色
+        current_color = self.stroke_color.get()
+        if current_color == "#000000":
+            initial_color = "#333333"  # 使用深灰色作为初始颜色，更容易看到
+        else:
+            initial_color = current_color
+            
+        color = colorchooser.askcolor(
+            color=initial_color,
+            title="选择描边颜色"
+        )
+        
+        if color[1]:  # 用户选择了颜色
+            self.stroke_color.set(color[1])
+            # 更新按钮颜色，确保文本颜色与背景形成对比
+            bg_color = color[1]
+            # 计算亮度来决定文本颜色
+            r = int(bg_color[1:3], 16)
+            g = int(bg_color[3:5], 16)
+            b = int(bg_color[5:7], 16)
+            brightness = (r * 299 + g * 587 + b * 114) / 1000
+            text_color = "white" if brightness < 128 else "black"
+            
+            self.stroke_color_button.config(bg=bg_color, fg=text_color)
+            self.on_setting_change()
+    
     def browse_image(self):
         """浏览图片文件"""
         filetypes = [
@@ -559,6 +679,8 @@ class WatermarkPanel(ttk.LabelFrame):
             'font_size': self.font_size.get(),
             'font_family': font_name,
             'font_path': font_path,
+            'font_bold': self.font_bold.get(),
+            'font_italic': self.font_italic.get(),
             'color': self.text_color.get(),
             'opacity': self.opacity.get(),
             'position': self.position.get(),
@@ -571,7 +693,10 @@ class WatermarkPanel(ttk.LabelFrame):
             'shadow_offset_x': self.shadow_offset_x.get(),
             'shadow_offset_y': self.shadow_offset_y.get(),
             'shadow_blur': self.shadow_blur.get(),
-            'shadow_color': self.shadow_color.get()
+            'shadow_color': self.shadow_color.get(),
+            'stroke_enabled': self.stroke_enabled.get(),
+            'stroke_width': self.stroke_width.get(),
+            'stroke_color': self.stroke_color.get()
         }
     
     def set_settings(self, settings: Dict[str, Any]):
@@ -581,6 +706,8 @@ class WatermarkPanel(ttk.LabelFrame):
         self.text_content.set(settings.get('text', '水印'))
         self.font_size.set(settings.get('font_size', 36))
         self.font_family.set(settings.get('font_family', '苹方 (PingFang SC)'))
+        self.font_bold.set(settings.get('font_bold', False))
+        self.font_italic.set(settings.get('font_italic', False))
         self.text_color.set(settings.get('color', '#FFFFFF'))
         self.opacity.set(settings.get('opacity', 80))
         self.position.set(settings.get('position', 'bottom_right'))
@@ -594,11 +721,16 @@ class WatermarkPanel(ttk.LabelFrame):
         self.shadow_offset_y.set(settings.get('shadow_offset_y', 2))
         self.shadow_blur.set(settings.get('shadow_blur', 4))
         self.shadow_color.set(settings.get('shadow_color', '#000000'))
+        self.stroke_enabled.set(settings.get('stroke_enabled', False))
+        self.stroke_width.set(settings.get('stroke_width', 2))
+        self.stroke_color.set(settings.get('stroke_color', '#000000'))
         
         # 更新颜色按钮
         self.color_button.config(bg=self.text_color.get())
         if hasattr(self, 'shadow_color_button'):
             self.shadow_color_button.config(bg=self.shadow_color.get())
+        if hasattr(self, 'stroke_color_button'):
+            self.stroke_color_button.config(bg=self.stroke_color.get())
         
         # 更新界面状态
         self.on_watermark_toggle()
@@ -614,6 +746,8 @@ class WatermarkPanel(ttk.LabelFrame):
                 'type': 'text',
                 'text': '水印',
                 'font_size': 36,
+                'font_bold': False,
+                'font_italic': False,
                 'color': '#FFFFFF',
                 'opacity': 80,
                 'position': 'bottom_right',
@@ -626,7 +760,10 @@ class WatermarkPanel(ttk.LabelFrame):
                 'shadow_offset_x': 2,
                 'shadow_offset_y': 2,
                 'shadow_blur': 4,
-                'shadow_color': '#000000'
+                'shadow_color': '#000000',
+                'stroke_enabled': False,
+                'stroke_width': 2,
+                'stroke_color': '#000000'
             }
             self.set_settings(default_settings)
     

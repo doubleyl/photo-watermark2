@@ -46,9 +46,12 @@ class WatermarkManager:
                            position: WatermarkPosition = None, 
                            offset: Tuple[int, int] = (0, 0),
                            rotation: float = 0, font_path: str = None,
+                           font_bold: bool = False, font_italic: bool = False,
                            opacity: float = 80, shadow_enabled: bool = False,
                            shadow_offset: Tuple[int, int] = (2, 2),
-                           shadow_blur: int = 4, shadow_color: str = "#000000") -> Image.Image:
+                           shadow_blur: int = 4, shadow_color: str = "#000000",
+                           stroke_enabled: bool = False, stroke_width: int = 2,
+                           stroke_color: str = "#000000") -> Image.Image:
         """应用文本水印"""
         if not text.strip():
             return img.copy()
@@ -99,10 +102,10 @@ class WatermarkManager:
                 font = ImageFont.truetype(font_path, font_size)
             else:
                 # 获取支持中文的字体
-                font = self._get_chinese_font(font_size)
+                font = self._get_chinese_font(font_size, font_bold, font_italic)
         except Exception as e:
             print(f"加载字体失败: {e}")
-            font = self._get_chinese_font(font_size)
+            font = self._get_chinese_font(font_size, font_bold, font_italic)
         
         # 获取文本尺寸
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -128,11 +131,13 @@ class WatermarkManager:
             else:
                 print(f"阴影颜色格式不正确: {shadow_color}")
         
-        # 如果有旋转，创建旋转的文本图像
-        if rotation != 0:
-            # 创建文本图像，留出足够空间用于阴影和旋转
+        # 如果有旋转或斜体，创建文本图像
+        if rotation != 0 or font_italic:
+            # 创建文本图像，留出足够空间用于阴影、旋转和斜体变换
             padding = max(20, shadow_blur * 2 + max(abs(shadow_offset[0]), abs(shadow_offset[1])))
-            text_img = Image.new('RGBA', (text_width + padding * 2, text_height + padding * 2), (255, 255, 255, 0))
+            # 斜体需要额外的水平空间
+            extra_width = int(text_height * 0.2) if font_italic else 0
+            text_img = Image.new('RGBA', (text_width + padding * 2 + extra_width, text_height + padding * 2), (255, 255, 255, 0))
             text_draw = ImageDraw.Draw(text_img)
             
             # 绘制阴影
@@ -160,8 +165,36 @@ class WatermarkManager:
                     text_draw.text((shadow_x, shadow_y), text, font=font, fill=shadow_rgba)
                     print("旋转阴影直接绘制（无模糊）")
             
+            # 绘制描边（如果启用）
+            if stroke_enabled and stroke_width > 0:
+                # 转换描边颜色
+                if stroke_color.startswith('#'):
+                    stroke_r = int(stroke_color[1:3], 16)
+                    stroke_g = int(stroke_color[3:5], 16)
+                    stroke_b = int(stroke_color[5:7], 16)
+                    stroke_rgba = (stroke_r, stroke_g, stroke_b, 255)
+                else:
+                    stroke_rgba = (0, 0, 0, 255)  # 默认黑色
+                
+                # 绘制描边，通过在多个方向绘制文本来模拟描边效果
+                for dx in range(-stroke_width, stroke_width + 1):
+                    for dy in range(-stroke_width, stroke_width + 1):
+                        if dx != 0 or dy != 0:  # 不在中心位置绘制
+                            text_draw.text((padding + dx, padding + dy), text, font=font, fill=stroke_rgba)
+            
             # 绘制主文本
             text_draw.text((padding, padding), text, font=font, fill=color)
+            
+            # 应用斜体变换
+            if font_italic:
+                # 使用仿射变换实现斜体效果
+                # 斜体变换矩阵：[1, 0.2, 0, 1, 0, 0] 表示水平倾斜
+                text_img = text_img.transform(
+                    text_img.size,
+                    Image.AFFINE,
+                    (1, 0.2, 0, 0, 1, 0),
+                    Image.BILINEAR
+                )
             
             # 旋转文本图像
             rotated_text = text_img.rotate(rotation, expand=True)
@@ -204,8 +237,43 @@ class WatermarkManager:
                     draw.text((shadow_x, shadow_y), text, font=font, fill=shadow_rgba)
                     print("直接绘制阴影（无模糊）")
             
+            # 绘制描边（如果启用）
+            if stroke_enabled and stroke_width > 0:
+                # 转换描边颜色
+                if stroke_color.startswith('#'):
+                    stroke_r = int(stroke_color[1:3], 16)
+                    stroke_g = int(stroke_color[3:5], 16)
+                    stroke_b = int(stroke_color[5:7], 16)
+                    stroke_rgba = (stroke_r, stroke_g, stroke_b, 255)
+                else:
+                    stroke_rgba = (0, 0, 0, 255)  # 默认黑色
+                
+                # 绘制描边，通过在多个方向绘制文本来模拟描边效果
+                for dx in range(-stroke_width, stroke_width + 1):
+                    for dy in range(-stroke_width, stroke_width + 1):
+                        if dx != 0 or dy != 0:  # 不在中心位置绘制
+                            draw.text((x + dx, y + dy), text, font=font, fill=stroke_rgba)
+            
             # 绘制主文本
-            draw.text((x, y), text, font=font, fill=color)
+            if font_italic:
+                # 对于斜体，需要创建单独的文本图像进行变换
+                extra_width = int(text_height * 0.2)
+                text_img = Image.new('RGBA', (text_width + extra_width, text_height), (255, 255, 255, 0))
+                text_draw = ImageDraw.Draw(text_img)
+                text_draw.text((0, 0), text, font=font, fill=color)
+                
+                # 应用斜体变换
+                text_img = text_img.transform(
+                    text_img.size,
+                    Image.AFFINE,
+                    (1, 0.2, 0, 0, 1, 0),
+                    Image.BILINEAR
+                )
+                
+                # 粘贴变换后的文本
+                overlay.paste(text_img, (x, y), text_img)
+            else:
+                draw.text((x, y), text, font=font, fill=color)
         
         # 合并图层
         watermarked_img = Image.alpha_composite(watermarked_img, overlay)
@@ -357,8 +425,13 @@ class WatermarkManager:
                 'text': kwargs.get('text', ''),
                 'font_size': kwargs.get('font_size', self.default_font_size),
                 'font_path': kwargs.get('font_path', ''),
+                'font_bold': kwargs.get('font_bold', False),
+                'font_italic': kwargs.get('font_italic', False),
                 'color': kwargs.get('color', self.default_color),
-                'opacity': kwargs.get('opacity', 0.5)
+                'opacity': kwargs.get('opacity', 0.5),
+                'stroke_enabled': kwargs.get('stroke_enabled', False),
+                'stroke_width': kwargs.get('stroke_width', 2),
+                'stroke_color': kwargs.get('stroke_color', '#000000')
             })
         elif watermark_type == WatermarkType.IMAGE:
             config.update({
@@ -389,11 +462,16 @@ class WatermarkManager:
                 offset=offset,
                 rotation=rotation,
                 font_path=config.get('font_path', ''),
+                font_bold=config.get('font_bold', False),
+                font_italic=config.get('font_italic', False),
                 opacity=config.get('opacity', 80),
                 shadow_enabled=config.get('shadow_enabled', False),
                 shadow_offset=(config.get('shadow_offset_x', 2), config.get('shadow_offset_y', 2)),
                 shadow_blur=config.get('shadow_blur', 4),
-                shadow_color=config.get('shadow_color', '#000000')
+                shadow_color=config.get('shadow_color', '#000000'),
+                stroke_enabled=config.get('stroke_enabled', False),
+                stroke_width=config.get('stroke_width', 2),
+                stroke_color=config.get('stroke_color', '#000000')
             )
         elif watermark_type == WatermarkType.IMAGE:
             return self.apply_image_watermark(
@@ -464,24 +542,60 @@ class WatermarkManager:
         except Exception as e:
             return False, f"配置验证失败: {e}"
     
-    def _get_chinese_font(self, font_size: int) -> ImageFont.FreeTypeFont:
+    def _get_chinese_font(self, font_size: int, bold: bool = False, italic: bool = False) -> ImageFont.FreeTypeFont:
         """获取支持中文的字体"""
-        # macOS 中文字体优先级列表
-        chinese_fonts = [
-            "/System/Library/Fonts/PingFang.ttc",  # 苹方字体
-            "/System/Library/Fonts/STHeiti Light.ttc",  # 华文黑体
-            "/System/Library/Fonts/STHeiti Medium.ttc",
-            "/System/Library/Fonts/Hiragino Sans GB.ttc",  # 冬青黑体
-            "/System/Library/Fonts/Arial Unicode MS.ttf",  # Arial Unicode MS
-            "/System/Library/Fonts/Helvetica.ttc",  # Helvetica
-            "/System/Library/Fonts/Arial.ttf",  # Arial
-        ]
+        # macOS 中文字体优先级列表，根据样式选择不同的字体文件
+        if bold and italic:
+            # 粗斜体字体
+            chinese_fonts = [
+                "/System/Library/Fonts/PingFang.ttc",  # 苹方字体（会自动处理样式）
+                "/System/Library/Fonts/STHeiti Medium.ttc",  # 华文黑体中等
+                "/System/Library/Fonts/Hiragino Sans GB.ttc",  # 冬青黑体
+                "/System/Library/Fonts/Arial Unicode MS.ttf",  # Arial Unicode MS
+                "/System/Library/Fonts/Helvetica.ttc",  # Helvetica
+                "/System/Library/Fonts/Arial.ttf",  # Arial
+            ]
+        elif bold:
+            # 粗体字体
+            chinese_fonts = [
+                "/System/Library/Fonts/PingFang.ttc",  # 苹方字体
+                "/System/Library/Fonts/STHeiti Medium.ttc",  # 华文黑体中等
+                "/System/Library/Fonts/Hiragino Sans GB.ttc",  # 冬青黑体
+                "/System/Library/Fonts/Arial Unicode MS.ttf",  # Arial Unicode MS
+                "/System/Library/Fonts/Helvetica.ttc",  # Helvetica
+                "/System/Library/Fonts/Arial.ttf",  # Arial
+            ]
+        elif italic:
+            # 斜体字体
+            chinese_fonts = [
+                "/System/Library/Fonts/PingFang.ttc",  # 苹方字体
+                "/System/Library/Fonts/STHeiti Light.ttc",  # 华文黑体
+                "/System/Library/Fonts/Hiragino Sans GB.ttc",  # 冬青黑体
+                "/System/Library/Fonts/Arial Unicode MS.ttf",  # Arial Unicode MS
+                "/System/Library/Fonts/Helvetica.ttc",  # Helvetica
+                "/System/Library/Fonts/Arial.ttf",  # Arial
+            ]
+        else:
+            # 常规字体
+            chinese_fonts = [
+                "/System/Library/Fonts/PingFang.ttc",  # 苹方字体
+                "/System/Library/Fonts/STHeiti Light.ttc",  # 华文黑体
+                "/System/Library/Fonts/STHeiti Medium.ttc",
+                "/System/Library/Fonts/Hiragino Sans GB.ttc",  # 冬青黑体
+                "/System/Library/Fonts/Arial Unicode MS.ttf",  # Arial Unicode MS
+                "/System/Library/Fonts/Helvetica.ttc",  # Helvetica
+                "/System/Library/Fonts/Arial.ttf",  # Arial
+            ]
         
         # 尝试加载中文字体
         for font_path in chinese_fonts:
             try:
                 if os.path.exists(font_path):
-                    return ImageFont.truetype(font_path, font_size)
+                    font = ImageFont.truetype(font_path, font_size)
+                    # 注意：PIL的ImageFont不直接支持粗体/斜体样式
+                    # 这里主要是选择不同的字体文件，实际的粗体/斜体效果
+                    # 可能需要在绘制时通过其他方式实现
+                    return font
             except Exception:
                 continue
         
