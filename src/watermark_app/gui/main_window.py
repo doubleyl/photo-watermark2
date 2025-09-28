@@ -132,7 +132,6 @@ class WatermarkApp:
         menubar.add_cascade(label="水印", menu=watermark_menu)
         watermark_menu.add_command(label="保存模板...", command=self.save_template)
         watermark_menu.add_command(label="加载模板...", command=self.load_template)
-        watermark_menu.add_command(label="管理模板...", command=self.manage_templates)
         
         # 帮助菜单
         help_menu = tk.Menu(menubar, tearoff=0)
@@ -281,10 +280,6 @@ class WatermarkApp:
     def load_template(self):
         """加载水印模板"""
         self.watermark_panel.load_template()
-    
-    def manage_templates(self):
-        """管理水印模板"""
-        self.watermark_panel.manage_templates()
     
     def show_help(self):
         """显示帮助信息"""

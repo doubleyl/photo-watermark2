@@ -34,7 +34,6 @@ class ExportPanel(ttk.LabelFrame):
         self.resize_width = tk.IntVar(value=1920)
         self.resize_height = tk.IntVar(value=1080)
         self.resize_mode = tk.StringVar(value="width")
-        self.allow_overwrite = tk.BooleanVar(value=False)  # 新增：是否允许覆盖原文件
         
         # 进度弹窗
         self.progress_dialog = None
@@ -145,15 +144,7 @@ class ExportPanel(ttk.LabelFrame):
         
         self.quality_frame.columnconfigure(1, weight=1)
         
-        # 安全设置
-        safety_frame = ttk.LabelFrame(self, text="安全设置", padding=3)
-        safety_frame.pack(fill=tk.X, pady=(0, 8))
-        
-        ttk.Checkbutton(
-            safety_frame,
-            text="允许覆盖原文件（不推荐）",
-            variable=self.allow_overwrite
-        ).pack(anchor=tk.W)
+
         
         ttk.Checkbutton(
             resize_frame,
@@ -283,40 +274,30 @@ class ExportPanel(ttk.LabelFrame):
             messagebox.showerror("错误", "请先导入图片文件")
             return False
         
-        # 检查覆盖风险
+        # 检查是否会覆盖源文件
         image_files = self.app.image_list_panel.get_all_images()
         output_folder = os.path.abspath(self.output_folder.get())
         
         # 检查是否可能覆盖原文件
-        potential_overwrites = []
+        source_file_overwrites = []
         for image_file in image_files:
-            image_folder = os.path.abspath(os.path.dirname(image_file))
             output_filename = self.generate_output_filename(image_file)
             output_path = os.path.join(output_folder, output_filename)
             
             # 检查是否会覆盖原文件
             if os.path.abspath(image_file) == os.path.abspath(output_path):
-                potential_overwrites.append(os.path.basename(image_file))
-            # 检查是否会覆盖其他已存在的文件
-            elif os.path.exists(output_path):
-                potential_overwrites.append(output_filename)
+                source_file_overwrites.append(os.path.basename(image_file))
         
-        if potential_overwrites:
-            if not self.allow_overwrite.get():
-                messagebox.showerror(
-                    "安全警告", 
-                    f"检测到以下文件可能被覆盖：\n\n" + 
-                    "\n".join(potential_overwrites[:5]) + 
-                    ("\n..." if len(potential_overwrites) > 5 else "") +
-                    f"\n\n请更改输出文件夹或文件命名规则，\n或在安全设置中允许覆盖文件。"
-                )
-                return False
-            else:
-                if not messagebox.askyesno(
-                    "覆盖确认", 
-                    f"将覆盖 {len(potential_overwrites)} 个文件。\n确定要继续吗？"
-                ):
-                    return False
+        # 如果会覆盖源文件，提示用户修改路径
+        if source_file_overwrites:
+            messagebox.showerror(
+                "路径冲突", 
+                f"检测到以下源文件将被覆盖：\n\n" + 
+                "\n".join(source_file_overwrites[:5]) + 
+                ("\n..." if len(source_file_overwrites) > 5 else "") +
+                f"\n\n请更改输出文件夹或修改文件命名规则以避免覆盖源文件。"
+            )
+            return False
         
         return True
     
