@@ -6,8 +6,6 @@
 
 本项目是一个基于 Python 和 Tkinter 开发的桌面应用程序，专为需要批量添加水印的用户设计。无论是摄影师保护作品版权，还是企业为产品图片添加品牌标识，这个工具都能满足您的需求。
 
-**注意**：本应用目前主要在 macOS 环境下开发和测试，对 macOS 系统提供最佳支持。
-
 ### ✨ 主要特色
 
 - 🖼️ **多格式支持**：支持 JPEG、PNG、BMP、TIFF 等主流图片格式
@@ -83,11 +81,9 @@
 ## 🔧 运行环境
 
 ### 系统要求
-- **主要支持**：macOS 12.0+ (已在 macOS 15.7 上测试)
-- **硬件架构**：Apple Silicon (M1/M2/M3) 优先，Intel x86_64 理论支持
+- **主要支持**：macOS 12.0+ (已在 macOS(arm) 15.7 上测试), Windows 10+ (已在 Windows 11 上测试)
 - **Python 版本**：3.8+
 - **开发环境**：基于 macOS 15.7 + Apple M1 芯片开发测试
-- **其他系统**：理论上支持 Windows 和 Linux，但未经充分测试
 
 ### Python 命令兼容性
 - **Python 版本**：建议使用 Python 3.8，已在此版本下充分测试
@@ -103,9 +99,9 @@
 
 ## 📦 安装与运行
 
-> **系统兼容性说明**：以下安装步骤主要针对 macOS 系统。Windows 和 Linux 用户可以参考相同步骤，但可能需要根据具体系统进行调整。
+> **系统兼容性说明**：macOS 用户推荐使用 micromamba 或 conda 来管理 Python 环境，方法二在某些macOS版本上可能会遇到兼容性问题。
 
-### 方法一：使用 Conda（推荐）
+### 方法一：使用 Conda 或 Micromamba（推荐）
 
 1. **克隆项目**
 ```bash
@@ -134,7 +130,7 @@ python main.py
 
 ### 方法二：使用 pip
 
-> 出现一下问题需要参照尾部内容处理
+> macOS 一些版本可能遇到如下问题，可切换windows或使用方法一：
 > macOS xx (xxxx) or later required, have instead xx (xxxx) !
 > zsh: abort      python3 main.py
 
@@ -155,14 +151,14 @@ python -m venv photo-watermark-env
 
 3. **激活虚拟环境**
 ```bash
-# macOS/Linux
+# macOS
 source photo-watermark-env/bin/activate
 
-# Windows (如果使用)
-# photo-watermark-env\Scripts\activate 
+# Windows PowerShell
+.\photo-watermark-env\Scripts\Activate.ps1
+# 或者 Windows CMD
+.\photo-watermark-env\Scripts\activate.bat
 ```
-
-> **注意**：如果您看到 "No such file or directory" 错误，请确保已正确创建虚拟环境。某些系统可能需要使用 `python3` 而不是 `python` 命令。
 
 4. **安装依赖**
 ```bash
@@ -176,13 +172,4 @@ python main.py
 
 # 如果上述命令不工作，请尝试
 # python3 main.py
-```
-
-### 快速启动
-
-如果您已经配置好环境，可以直接运行：
-
-```bash
-# 确保在项目根目录
-python main.py
 ```
