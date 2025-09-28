@@ -54,9 +54,12 @@ class WatermarkPanel(ttk.LabelFrame):
         self.watermark_manager = WatermarkManager()
         self.available_fonts = self.watermark_manager.get_available_fonts()
         
-        # 防抖定时器
+        # 保存设置的防抖机制
         self.save_timer = None
         self.save_delay = 1000  # 1秒延迟
+        
+        # 拖动状态管理
+        self.is_dragging = False
         
         self.setup_ui()
         self.setup_bindings()
@@ -545,12 +548,14 @@ class WatermarkPanel(ttk.LabelFrame):
     
     def on_setting_change(self, *args):
         """设置变化事件"""
-        # 通知预览面板更新
-        if hasattr(self.app, 'preview_panel'):
-            self.app.preview_panel.refresh_preview()
-        
-        # 实时保存设置（使用防抖机制）
-        self.schedule_save_settings()
+        # 在拖动时跳过预览刷新和自动保存，避免频繁的重新生成和I/O操作
+        if not self.is_dragging:
+            # 通知预览面板更新
+            if hasattr(self.app, 'preview_panel'):
+                self.app.preview_panel.refresh_preview()
+            
+            # 实时保存设置（使用防抖机制）
+            self.schedule_save_settings()
     
     def schedule_save_settings(self):
         """调度保存设置（防抖机制）"""
@@ -582,6 +587,19 @@ class WatermarkPanel(ttk.LabelFrame):
         finally:
             # 清除定时器引用
             self.save_timer = None
+    
+    def set_dragging_state(self, is_dragging: bool):
+        """设置拖动状态"""
+        self.is_dragging = is_dragging
+        
+        # 如果拖动结束，刷新预览并调度一次保存
+        if not is_dragging:
+            # 手动刷新预览，确保最终状态正确显示
+            if hasattr(self.app, 'preview_panel'):
+                self.app.preview_panel.refresh_preview()
+            
+            # 立即调度一次保存
+            self.schedule_save_settings()
     
     def on_shadow_toggle(self):
         """阴影启用/禁用切换"""

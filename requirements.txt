@@ -1,5 +1,6 @@
 # 图片水印应用依赖包
-# 支持 Python 3.8+ 和多平台环境 (Windows, macOS, Linux)
+# 支持 Python 3.8-3.11 版本
+# 主要开发测试环境：macOS 15.7 + Apple M1 芯片
 
 # GUI框架增强
 tkinter-tooltip>=2.2.0,<3.0.0
@@ -8,7 +9,7 @@ tkinter-tooltip>=2.2.0,<3.0.0
 Pillow>=9.5.0,<11.0.0
 
 # 数学计算和数组处理 - 兼容多种架构
-numpy>=1.21.0,<2.0.0; python_version>="3.8"
+numpy>=1.21.0,<2.0.0; python_version=="3.8"
 
 # 配置文件处理
 PyYAML>=6.0,<7.0.0

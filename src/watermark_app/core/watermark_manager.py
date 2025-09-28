@@ -59,11 +59,7 @@ class WatermarkManager:
                            stroke_color: str = "#000000") -> Image.Image:
         """应用文本水印"""
         if not text.strip():
-            self.logger.warning("文本水印为空，返回原图")
             return img.copy()
-        
-        self.logger.info(f"开始应用文本水印: '{text}', 字体大小: {font_size}, 位置: {position}")
-        self.logger.debug(f"水印参数 - 透明度: {opacity}, 旋转: {rotation}, 阴影: {shadow_enabled}")
         
         # 使用默认值
         font_size = font_size or self.default_font_size
@@ -138,16 +134,12 @@ class WatermarkManager:
         # 处理阴影颜色
         shadow_rgba = None
         if shadow_enabled and shadow_color:
-            print(f"阴影启用: {shadow_enabled}, 阴影颜色: {shadow_color}")
             if shadow_color.startswith('#'):
                 r = int(shadow_color[1:3], 16)
                 g = int(shadow_color[3:5], 16)
                 b = int(shadow_color[5:7], 16)
                 # 阴影使用更高的不透明度，让它更明显
                 shadow_rgba = (r, g, b, 220)
-                print(f"阴影RGBA: {shadow_rgba}")
-            else:
-                print(f"阴影颜色格式不正确: {shadow_color}")
         
         # 如果有旋转或斜体，创建文本图像
         if rotation != 0 or font_italic:
@@ -177,11 +169,9 @@ class WatermarkManager:
                     # 合并阴影到文本图像
                     text_img = Image.alpha_composite(text_img, shadow_layer)
                     text_draw = ImageDraw.Draw(text_img)
-                    print(f"旋转阴影模糊效果已应用，模糊半径: {blur_radius}")
                 else:
                     # 直接绘制阴影
                     text_draw.text((shadow_x, shadow_y), text, font=font, fill=shadow_rgba)
-                    print("旋转阴影直接绘制（无模糊）")
             
             # 绘制描边（如果启用）
             if stroke_enabled and stroke_width > 0:
@@ -229,7 +219,6 @@ class WatermarkManager:
             if shadow_enabled and shadow_rgba:
                 shadow_x = x + shadow_offset[0]
                 shadow_y = y + shadow_offset[1]
-                print(f"绘制阴影位置: ({shadow_x}, {shadow_y}), 偏移: {shadow_offset}, 模糊: {shadow_blur}")
                 
                 # 先绘制阴影
                 if shadow_blur > 0 and shadow_blur <= 10:  # 限制模糊范围
@@ -245,15 +234,12 @@ class WatermarkManager:
                         # 合并阴影到主图层
                         overlay = Image.alpha_composite(overlay, shadow_layer)
                         draw = ImageDraw.Draw(overlay)
-                        print(f"阴影模糊效果已应用，模糊半径: {blur_radius}")
                     except Exception as e:
-                        print(f"阴影模糊失败: {e}")
                         # 如果模糊失败，直接绘制阴影
                         draw.text((shadow_x, shadow_y), text, font=font, fill=shadow_rgba)
                 else:
                     # 直接绘制阴影（无模糊或模糊值过大）
                     draw.text((shadow_x, shadow_y), text, font=font, fill=shadow_rgba)
-                    print("直接绘制阴影（无模糊）")
             
             # 绘制描边（如果启用）
             if stroke_enabled and stroke_width > 0:

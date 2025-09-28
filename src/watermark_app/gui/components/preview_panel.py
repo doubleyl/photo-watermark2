@@ -31,8 +31,12 @@ class PreviewPanel(ttk.LabelFrame):
         self.dragging = False
         self.drag_start_x = 0
         self.drag_start_y = 0
-        self.watermark_offset_x = 0
-        self.watermark_offset_y = 0
+        self.drag_start_offset_x = 0
+        self.drag_start_offset_y = 0
+        
+        # 实时拖动反馈相关变量
+        self.drag_preview_item = None  # Canvas上的临时水印预览项
+        self.base_image_item = None    # Canvas上的基础图像项
         
         self.setup_ui()
         self.setup_bindings()
@@ -295,14 +299,187 @@ class PreviewPanel(ttk.LabelFrame):
             x = max(0, (canvas_width - img_width) // 2)
             y = max(0, (canvas_height - img_height) // 2)
             
-            # 在居中位置显示图片
-            self.canvas.create_image(x, y, anchor=tk.NW, image=self.current_photo)
+            # 在居中位置显示图片，并保存引用
+            self.base_image_item = self.canvas.create_image(x, y, anchor=tk.NW, image=self.current_photo)
             
             # 更新滚动区域
             self.canvas.configure(scrollregion=self.canvas.bbox("all"))
             
         except Exception as e:
             self.show_error(f"显示图片失败: {e}")
+    
+    def create_drag_preview(self, x, y):
+        """创建拖动时的水印预览"""
+        if not hasattr(self.app, 'watermark_panel'):
+            return
+            
+        try:
+            watermark_panel = self.app.watermark_panel
+            watermark_type = watermark_panel.watermark_type.get()
+            
+            # 移除之前的预览
+            self.remove_drag_preview()
+            
+            if watermark_type == "text":
+                # 文本水印预览
+                text = watermark_panel.text_content.get()
+                if text.strip():
+                    # 获取真实的字体属性
+                    font_size = int(watermark_panel.font_size.get() * self.zoom_factor)
+                    font_family = watermark_panel.font_family.get()
+                    font_bold = watermark_panel.font_bold.get()
+                    font_italic = watermark_panel.font_italic.get()
+                    
+                    # 获取真实的颜色
+                    text_color = watermark_panel.text_color.get()
+                    
+                    # 获取旋转角度
+                    rotation_angle = watermark_panel.rotation_angle.get()
+                    
+                    # 构建字体样式
+                    font_style = "normal"
+                    font_weight = "bold" if font_bold else "normal"
+                    if font_italic:
+                        font_style = "italic"
+                    
+                    # 创建更真实的文本预览
+                    self.drag_preview_item = self.canvas.create_text(
+                        x, y,
+                        text=text,
+                        font=(font_family, max(12, font_size), font_weight, font_style),
+                        fill=text_color,
+                        anchor=tk.CENTER,
+                        angle=rotation_angle  # 添加旋转角度
+                    )
+            else:
+                # 图片水印预览
+                if hasattr(watermark_panel, 'watermark_image') and watermark_panel.watermark_image:
+                    # 计算水印图片的显示尺寸
+                    scale = watermark_panel.scale.get() / 100.0
+                    img_width = int(watermark_panel.watermark_image.width * scale * self.zoom_factor)
+                    img_height = int(watermark_panel.watermark_image.height * scale * self.zoom_factor)
+                    
+                    # 获取旋转角度
+                    rotation_angle = watermark_panel.rotation_angle.get()
+                    
+                    # 如果有旋转，创建旋转的矩形预览
+                    if rotation_angle != 0:
+                        # 计算旋转后的四个角点
+                        import math
+                        rad = math.radians(rotation_angle)
+                        cos_a = math.cos(rad)
+                        sin_a = math.sin(rad)
+                        
+                        # 矩形的四个角点（相对于中心）
+                        corners = [
+                            (-img_width//2, -img_height//2),
+                            (img_width//2, -img_height//2),
+                            (img_width//2, img_height//2),
+                            (-img_width//2, img_height//2)
+                        ]
+                        
+                        # 旋转后的角点
+                        rotated_corners = []
+                        for cx, cy in corners:
+                            rx = cx * cos_a - cy * sin_a + x
+                            ry = cx * sin_a + cy * cos_a + y
+                            rotated_corners.extend([rx, ry])
+                        
+                        # 创建旋转的多边形预览
+                        self.drag_preview_item = self.canvas.create_polygon(
+                            rotated_corners,
+                            outline="#FF6B6B",
+                            width=2,
+                            fill="",
+                            dash=(5, 5)
+                        )
+                    else:
+                        # 创建普通矩形框预览
+                        self.drag_preview_item = self.canvas.create_rectangle(
+                            x - img_width//2, y - img_height//2,
+                            x + img_width//2, y + img_height//2,
+                            outline="#FF6B6B",
+                            width=2,
+                            dash=(5, 5),
+                            fill=""
+                        )
+                else:
+                    # 如果没有水印图片，显示默认大小的矩形
+                    size = int(100 * self.zoom_factor)
+                    self.drag_preview_item = self.canvas.create_rectangle(
+                        x - size//2, y - size//2,
+                        x + size//2, y + size//2,
+                        outline="#FF6B6B",
+                        width=2,
+                        fill="",
+                        dash=(5, 5)
+                    )
+                
+        except Exception as e:
+            print(f"创建拖动预览失败: {e}")
+    
+    def update_drag_preview(self, x, y):
+        """更新拖动预览的位置"""
+        if self.drag_preview_item:
+            try:
+                watermark_panel = self.app.watermark_panel
+                watermark_type = watermark_panel.watermark_type.get()
+                
+                if watermark_type == "text":
+                    # 更新文本位置
+                    self.canvas.coords(self.drag_preview_item, x, y)
+                else:
+                    # 更新图片水印位置
+                    if hasattr(watermark_panel, 'watermark_image') and watermark_panel.watermark_image:
+                        scale = watermark_panel.scale.get() / 100.0
+                        img_width = int(watermark_panel.watermark_image.width * scale * self.zoom_factor)
+                        img_height = int(watermark_panel.watermark_image.height * scale * self.zoom_factor)
+                        rotation_angle = watermark_panel.rotation_angle.get()
+                        
+                        if rotation_angle != 0:
+                            # 更新旋转多边形的位置
+                            import math
+                            rad = math.radians(rotation_angle)
+                            cos_a = math.cos(rad)
+                            sin_a = math.sin(rad)
+                            
+                            corners = [
+                                (-img_width//2, -img_height//2),
+                                (img_width//2, -img_height//2),
+                                (img_width//2, img_height//2),
+                                (-img_width//2, img_height//2)
+                            ]
+                            
+                            rotated_corners = []
+                            for cx, cy in corners:
+                                rx = cx * cos_a - cy * sin_a + x
+                                ry = cx * sin_a + cy * cos_a + y
+                                rotated_corners.extend([rx, ry])
+                            
+                            self.canvas.coords(self.drag_preview_item, *rotated_corners)
+                        else:
+                            # 更新普通矩形位置
+                            self.canvas.coords(
+                                self.drag_preview_item,
+                                x - img_width//2, y - img_height//2,
+                                x + img_width//2, y + img_height//2
+                            )
+                    else:
+                        # 默认大小矩形
+                        size = int(100 * self.zoom_factor)
+                        self.canvas.coords(
+                            self.drag_preview_item,
+                            x - size//2, y - size//2,
+                            x + size//2, y + size//2
+                        )
+            except Exception as e:
+                print(f"更新拖动预览失败: {e}")
+    
+    def remove_drag_preview(self):
+        """移除拖动预览"""
+        if self.drag_preview_item:
+            self.canvas.delete(self.drag_preview_item)
+            self.drag_preview_item = None
     
     def calculate_display_size(self) -> Image.Image:
         """计算显示尺寸"""
@@ -363,6 +540,12 @@ class PreviewPanel(ttk.LabelFrame):
         if hasattr(self.app, 'watermark_panel'):
             self.drag_start_offset_x = self.app.watermark_panel.offset_x.get()
             self.drag_start_offset_y = self.app.watermark_panel.offset_y.get()
+            
+            # 设置拖动状态，暂停自动保存
+            self.app.watermark_panel.set_dragging_state(True)
+            
+            # 创建拖动预览
+            self.create_drag_preview(event.x, event.y)
     
     def on_canvas_drag(self, event):
         """画布拖拽事件 - 实时更新水印位置"""
@@ -382,12 +565,19 @@ class PreviewPanel(ttk.LabelFrame):
             self.app.watermark_panel.offset_x.set(int(new_offset_x))
             self.app.watermark_panel.offset_y.set(int(new_offset_y))
             
-            # 实时更新预览
-            self.refresh_preview()
+        # 更新拖动预览位置，提供实时视觉反馈
+        self.update_drag_preview(event.x, event.y)
     
     def on_canvas_release(self, event):
         """画布释放事件 - 结束拖拽"""
         self.dragging = False
+        
+        # 移除拖动预览
+        self.remove_drag_preview()
+        
+        # 恢复自动保存状态
+        if hasattr(self.app, 'watermark_panel'):
+            self.app.watermark_panel.set_dragging_state(False)
     
     def refresh_preview(self):
         """刷新预览"""
@@ -400,6 +590,11 @@ class PreviewPanel(ttk.LabelFrame):
         self.current_image = None
         self.current_photo = None
         self.original_image = None
+        
+        # 清理拖动预览
+        self.remove_drag_preview()
+        self.base_image_item = None
+        
         self.show_placeholder()
     
     def show_error(self, message: str):

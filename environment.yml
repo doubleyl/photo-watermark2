@@ -1,4 +1,4 @@
-name: photo-watermark
+name: photo-watermark-env
 channels:
   - conda-forge
   - defaults
