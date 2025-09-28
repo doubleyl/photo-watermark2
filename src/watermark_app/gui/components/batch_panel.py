@@ -412,12 +412,13 @@ class BatchPanel(ttk.LabelFrame):
         """处理单个文件"""
         # 打开图片
         image = Image.open(file_path)
+        original_mode = image.mode
         
         # 获取当前水印设置
         watermark_settings = self.app.watermark_panel.get_settings()
         
         # 应用水印
-        watermarked_image = self.watermark_manager.apply_watermark(image, watermark_settings)
+        watermarked_image = self.watermark_manager.apply_watermark_from_config(image, watermark_settings)
         
         # 生成输出文件名
         output_path = self.generate_output_path(file_path)
@@ -431,8 +432,28 @@ class BatchPanel(ttk.LabelFrame):
                 counter += 1
             output_path = f"{base}_{counter}{ext}"
         
-        # 保存图片
-        watermarked_image.save(output_path, quality=95)
+        # 保存图片，保持透明通道
+        save_kwargs = {}
+        output_ext = os.path.splitext(output_path)[1].lower()
+        
+        if output_ext in ['.jpg', '.jpeg']:
+            # JPEG不支持透明度，需要转换为RGB
+            if watermarked_image.mode in ('RGBA', 'LA'):
+                background = Image.new('RGB', watermarked_image.size, (255, 255, 255))
+                if watermarked_image.mode == 'RGBA':
+                    background.paste(watermarked_image, mask=watermarked_image.split()[-1])
+                else:
+                    background.paste(watermarked_image, mask=watermarked_image.split()[-1])
+                watermarked_image = background
+            save_kwargs['quality'] = 95
+            save_kwargs['optimize'] = True
+        elif output_ext == '.png':
+            # PNG支持透明度，保持RGBA模式
+            if watermarked_image.mode != 'RGBA' and original_mode == 'RGBA':
+                watermarked_image = watermarked_image.convert('RGBA')
+            save_kwargs['optimize'] = True
+        
+        watermarked_image.save(output_path, **save_kwargs)
         
     def generate_output_path(self, input_path):
         """生成输出文件路径"""
