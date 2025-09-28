@@ -7,6 +7,7 @@
 import os
 import glob
 from typing import Dict, List, Optional, Tuple
+from collections import OrderedDict
 from PIL import ImageFont
 from .helpers import (
     is_macos, is_windows, is_linux, 
@@ -21,7 +22,7 @@ class FontManager:
         """初始化字体管理器"""
         self._font_cache = {}
         self._available_fonts = None
-        self._font_paths = {}
+        self._font_paths = OrderedDict()
     
     def get_available_fonts(self) -> Dict[str, str]:
         """获取可用字体列表，返回字体名称和路径的字典"""
@@ -31,18 +32,16 @@ class FontManager:
     
     def _scan_system_fonts(self):
         """扫描系统字体"""
-        self._available_fonts = {}
-        self._font_paths = {}
+        self._available_fonts = OrderedDict()
+        self._font_paths = OrderedDict()
         
-        # 获取系统字体目录
+        # 首先添加预定义的常用字体（优先级最高）
+        self._add_predefined_fonts()
+        
+        # 然后扫描系统字体目录
         font_dirs = get_system_font_dirs()
-        
-        # 扫描字体文件
         for font_dir in font_dirs:
             self._scan_font_directory(font_dir)
-        
-        # 添加预定义的常用字体
-        self._add_predefined_fonts()
         
         # 如果没有找到任何字体，添加默认选项
         if not self._available_fonts:
@@ -62,7 +61,7 @@ class FontManager:
                 for font_path in glob.glob(pattern, recursive=True):
                     try:
                         font_name = self._extract_font_name(font_path)
-                        if font_name:
+                        if font_name and font_name not in self._available_fonts:
                             self._available_fonts[font_name] = font_path
                             self._font_paths[font_name] = font_path
                     except Exception:
@@ -79,21 +78,80 @@ class FontManager:
             # 清理名称
             name = base_name.replace('_', ' ').replace('-', ' ')
             
-            # 特殊处理一些常见的字体名称
-            name_mappings = {
-                'PingFang': 'PingFang SC',
-                'STHeiti': 'STHeiti',
-                'Hiragino Sans GB': 'Hiragino Sans GB',
-                'Microsoft YaHei': 'Microsoft YaHei',
-                'SimHei': 'SimHei',
-                'SimSun': 'SimSun',
-                'Noto Sans CJK SC': 'Noto Sans CJK SC',
-                'WenQuanYi Micro Hei': 'WenQuanYi Micro Hei'
-            }
-            
-            for key, value in name_mappings.items():
-                if key.lower() in name.lower():
-                    return value
+            # 平台特定的字体过滤和映射
+            if is_windows():
+                # Windows平台：过滤掉macOS和Linux特有字体
+                macos_fonts = ['pingfang', 'stheiti', 'hiragino', 'menlo', 'sf pro']
+                linux_fonts = ['noto sans cjk', 'wenquanyi', 'dejavu', 'liberation', 'ubuntu']
+                
+                name_lower = name.lower()
+                for macos_font in macos_fonts:
+                    if macos_font in name_lower:
+                        return None  # 跳过macOS字体
+                for linux_font in linux_fonts:
+                    if linux_font in name_lower:
+                        return None  # 跳过Linux字体
+                
+                # Windows字体名称映射
+                windows_mappings = {
+                    'msyh': 'Microsoft YaHei',
+                    'simhei': 'SimHei',
+                    'simsun': 'SimSun',
+                    'arial': 'Arial',
+                    'calibri': 'Calibri',
+                    'times': 'Times New Roman'
+                }
+                
+                for key, value in windows_mappings.items():
+                    if key in name_lower:
+                        return value
+                        
+            elif is_macos():
+                # macOS平台：过滤掉Windows和Linux特有字体
+                windows_fonts = ['msyh', 'simhei', 'simsun', 'microsoft']
+                linux_fonts = ['noto sans cjk', 'wenquanyi', 'dejavu', 'liberation', 'ubuntu']
+                
+                name_lower = name.lower()
+                for windows_font in windows_fonts:
+                    if windows_font in name_lower:
+                        return None
+                for linux_font in linux_fonts:
+                    if linux_font in name_lower:
+                        return None
+                
+                # macOS字体名称映射
+                macos_mappings = {
+                    'pingfang': 'PingFang SC',
+                    'stheiti': 'STHeiti',
+                    'hiragino sans gb': 'Hiragino Sans GB'
+                }
+                
+                for key, value in macos_mappings.items():
+                    if key in name_lower:
+                        return value
+                        
+            else:  # Linux
+                # Linux平台：过滤掉Windows和macOS特有字体
+                windows_fonts = ['msyh', 'simhei', 'simsun', 'microsoft']
+                macos_fonts = ['pingfang', 'stheiti', 'hiragino', 'menlo', 'sf pro']
+                
+                name_lower = name.lower()
+                for windows_font in windows_fonts:
+                    if windows_font in name_lower:
+                        return None
+                for macos_font in macos_fonts:
+                    if macos_font in name_lower:
+                        return None
+                
+                # Linux字体名称映射
+                linux_mappings = {
+                    'noto sans cjk sc': 'Noto Sans CJK SC',
+                    'wenquanyi micro hei': 'WenQuanYi Micro Hei'
+                }
+                
+                for key, value in linux_mappings.items():
+                    if key in name_lower:
+                        return value
             
             return name
         except Exception:
@@ -116,15 +174,16 @@ class FontManager:
             }
         elif is_windows():
             windows_fonts_dir = os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts')
-            predefined_fonts = {
-                "微软雅黑 (Microsoft YaHei)": os.path.join(windows_fonts_dir, "msyh.ttc"),
-                "黑体 (SimHei)": os.path.join(windows_fonts_dir, "simhei.ttf"),
-                "宋体 (SimSun)": os.path.join(windows_fonts_dir, "simsun.ttc"),
-                "Arial Unicode MS": os.path.join(windows_fonts_dir, "ARIALUNI.TTF"),
-                "Arial": os.path.join(windows_fonts_dir, "arial.ttf"),
-                "Calibri": os.path.join(windows_fonts_dir, "calibri.ttf"),
-                "Times New Roman": os.path.join(windows_fonts_dir, "times.ttf")
-            }
+            # 使用有序字典确保字体顺序，中文字体优先
+            predefined_fonts = OrderedDict([
+                ("微软雅黑 (Microsoft YaHei)", os.path.join(windows_fonts_dir, "msyh.ttc")),
+                ("黑体 (SimHei)", os.path.join(windows_fonts_dir, "simhei.ttf")),
+                ("宋体 (SimSun)", os.path.join(windows_fonts_dir, "simsun.ttc")),
+                ("Arial", os.path.join(windows_fonts_dir, "arial.ttf")),
+                ("Calibri", os.path.join(windows_fonts_dir, "calibri.ttf")),
+                ("Times New Roman", os.path.join(windows_fonts_dir, "times.ttf")),
+                ("Arial Unicode MS", os.path.join(windows_fonts_dir, "ARIALUNI.TTF"))
+            ])
         else:  # Linux
             predefined_fonts = {
                 "思源黑体 (Noto Sans CJK SC)": "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
