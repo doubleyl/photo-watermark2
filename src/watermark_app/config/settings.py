@@ -482,34 +482,30 @@ class Settings:
         try:
             watermark_panel = app.watermark_panel
             
-            # 获取当前水印类型
-            watermark_type = watermark_panel.watermark_type.get()
-            
             settings = {
-                'watermark_type': watermark_type,
+                'watermark_type': watermark_panel.watermark_type.get(),
                 'position': watermark_panel.position.get(),
                 'opacity': watermark_panel.opacity.get(),
-                'margin': watermark_panel.margin.get(),
-                'rotation': watermark_panel.rotation.get(),
+                'offset_x': watermark_panel.offset_x.get(),
+                'offset_y': watermark_panel.offset_y.get(),
+                'rotation_angle': watermark_panel.rotation_angle.get(),
+                'text_content': watermark_panel.text_content.get(),
+                'font_size': watermark_panel.font_size.get(),
+                'font_family': watermark_panel.font_family.get(),
+                'font_bold': watermark_panel.font_bold.get(),
+                'font_italic': watermark_panel.font_italic.get(),
+                'text_color': watermark_panel.text_color.get(),
+                'shadow_enabled': watermark_panel.shadow_enabled.get(),
+                'shadow_offset_x': watermark_panel.shadow_offset_x.get(),
+                'shadow_offset_y': watermark_panel.shadow_offset_y.get(),
+                'shadow_blur': watermark_panel.shadow_blur.get(),
+                'shadow_color': watermark_panel.shadow_color.get(),
+                'stroke_enabled': watermark_panel.stroke_enabled.get(),
+                'stroke_width': watermark_panel.stroke_width.get(),
+                'stroke_color': watermark_panel.stroke_color.get(),
+                'image_path': watermark_panel.image_path.get(),
+                'image_scale': watermark_panel.image_scale.get(),
             }
-            
-            if watermark_type == 'text':
-                settings.update({
-                    'text_content': watermark_panel.text_content.get(),
-                    'font_size': watermark_panel.font_size.get(),
-                    'text_color': watermark_panel.text_color,
-                    'font_path': watermark_panel.font_path.get(),
-                    'shadow_enabled': watermark_panel.shadow_enabled.get(),
-                    'shadow_offset_x': watermark_panel.shadow_offset_x.get(),
-                    'shadow_offset_y': watermark_panel.shadow_offset_y.get(),
-                    'shadow_blur': watermark_panel.shadow_blur.get(),
-                    'shadow_color': watermark_panel.shadow_color,
-                })
-            elif watermark_type == 'image':
-                settings.update({
-                    'image_path': watermark_panel.image_path.get(),
-                    'image_scale': watermark_panel.image_scale.get(),
-                })
             
             return settings
         except Exception as e:
@@ -528,41 +524,51 @@ class Settings:
                 watermark_panel.position.set(settings['position'])
             if 'opacity' in settings:
                 watermark_panel.opacity.set(settings['opacity'])
-            if 'margin' in settings:
-                watermark_panel.margin.set(settings['margin'])
-            if 'rotation' in settings:
-                watermark_panel.rotation.set(settings['rotation'])
+            if 'offset_x' in settings:
+                watermark_panel.offset_x.set(settings['offset_x'])
+            if 'offset_y' in settings:
+                watermark_panel.offset_y.set(settings['offset_y'])
+            if 'rotation_angle' in settings:
+                watermark_panel.rotation_angle.set(settings['rotation_angle'])
             
             # 应用文本水印设置
-            if settings.get('watermark_type') == 'text':
-                if 'text_content' in settings:
-                    watermark_panel.text_content.set(settings['text_content'])
-                if 'font_size' in settings:
-                    watermark_panel.font_size.set(settings['font_size'])
-                if 'text_color' in settings:
-                    watermark_panel.text_color = settings['text_color']
-                if 'font_path' in settings:
-                    watermark_panel.font_path.set(settings['font_path'])
-                if 'shadow_enabled' in settings:
-                    watermark_panel.shadow_enabled.set(settings['shadow_enabled'])
-                if 'shadow_offset_x' in settings:
-                    watermark_panel.shadow_offset_x.set(settings['shadow_offset_x'])
-                if 'shadow_offset_y' in settings:
-                    watermark_panel.shadow_offset_y.set(settings['shadow_offset_y'])
-                if 'shadow_blur' in settings:
-                    watermark_panel.shadow_blur.set(settings['shadow_blur'])
-                if 'shadow_color' in settings:
-                    watermark_panel.shadow_color = settings['shadow_color']
+            if 'text_content' in settings:
+                watermark_panel.text_content.set(settings['text_content'])
+            if 'font_size' in settings:
+                watermark_panel.font_size.set(settings['font_size'])
+            if 'font_family' in settings:
+                watermark_panel.font_family.set(settings['font_family'])
+            if 'font_bold' in settings:
+                watermark_panel.font_bold.set(settings['font_bold'])
+            if 'font_italic' in settings:
+                watermark_panel.font_italic.set(settings['font_italic'])
+            if 'text_color' in settings:
+                watermark_panel.text_color.set(settings['text_color'])
+            if 'shadow_enabled' in settings:
+                watermark_panel.shadow_enabled.set(settings['shadow_enabled'])
+            if 'shadow_offset_x' in settings:
+                watermark_panel.shadow_offset_x.set(settings['shadow_offset_x'])
+            if 'shadow_offset_y' in settings:
+                watermark_panel.shadow_offset_y.set(settings['shadow_offset_y'])
+            if 'shadow_blur' in settings:
+                watermark_panel.shadow_blur.set(settings['shadow_blur'])
+            if 'shadow_color' in settings:
+                watermark_panel.shadow_color.set(settings['shadow_color'])
+            if 'stroke_enabled' in settings:
+                watermark_panel.stroke_enabled.set(settings['stroke_enabled'])
+            if 'stroke_width' in settings:
+                watermark_panel.stroke_width.set(settings['stroke_width'])
+            if 'stroke_color' in settings:
+                watermark_panel.stroke_color.set(settings['stroke_color'])
             
             # 应用图片水印设置
-            elif settings.get('watermark_type') == 'image':
-                if 'image_path' in settings:
-                    watermark_panel.image_path.set(settings['image_path'])
-                if 'image_scale' in settings:
-                    watermark_panel.image_scale.set(settings['image_scale'])
+            if 'image_path' in settings:
+                watermark_panel.image_path.set(settings['image_path'])
+            if 'image_scale' in settings:
+                watermark_panel.image_scale.set(settings['image_scale'])
             
             # 触发界面更新
-            watermark_panel.on_watermark_type_change()
+            watermark_panel.on_type_change()
             
         except Exception as e:
             print(f"应用水印设置失败: {e}")

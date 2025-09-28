@@ -145,6 +145,9 @@ class WatermarkApp:
         self.root.bind('<Command-Shift-O>', lambda e: self.import_folder())
         self.root.bind('<Command-e>', lambda e: self.export_images())
         self.root.bind('<Command-q>', lambda e: self.on_closing())
+        
+        # 绑定窗口关闭事件
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
     
     def load_default_settings(self):
         """加载默认设置或上次保存的设置"""
@@ -156,9 +159,16 @@ class WatermarkApp:
                 # 如果有上次的设置，应用到界面
                 if 'settings' in last_settings:
                     # 这是完整的会话数据
-                    watermark_settings = last_settings['settings']
-                    self.settings.apply_watermark_settings(self, watermark_settings)
-                    self.update_status("已加载上次会话设置")
+                    session_settings = last_settings['settings']
+                    if 'watermark_settings' in session_settings:
+                        # 新格式：包含watermark_settings
+                        watermark_settings = session_settings['watermark_settings']
+                        self.settings.apply_watermark_settings(self, watermark_settings)
+                        self.update_status("已加载上次会话设置")
+                    else:
+                        # 旧格式：直接是水印设置
+                        self.settings.apply_watermark_settings(self, session_settings)
+                        self.update_status("已加载上次会话设置")
                 else:
                     # 这是模板数据
                     self.settings.apply_watermark_settings(self, last_settings)
@@ -324,8 +334,13 @@ class WatermarkApp:
         try:
             # 获取并保存当前水印设置
             current_watermark_settings = self.settings.get_current_watermark_settings(self)
+            
             if current_watermark_settings:
-                self.settings.save_current(current_watermark_settings)
+                # 将水印设置包装成完整的设置格式
+                session_data = {
+                    'watermark_settings': current_watermark_settings
+                }
+                self.settings.save_current(session_data)
         except Exception as e:
             print(f"保存设置失败: {e}")
         

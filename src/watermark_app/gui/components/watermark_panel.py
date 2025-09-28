@@ -54,6 +54,10 @@ class WatermarkPanel(ttk.LabelFrame):
         self.watermark_manager = WatermarkManager()
         self.available_fonts = self.watermark_manager.get_available_fonts()
         
+        # 防抖定时器
+        self.save_timer = None
+        self.save_delay = 1000  # 1秒延迟
+        
         self.setup_ui()
         self.setup_bindings()
     
@@ -544,6 +548,40 @@ class WatermarkPanel(ttk.LabelFrame):
         # 通知预览面板更新
         if hasattr(self.app, 'preview_panel'):
             self.app.preview_panel.refresh_preview()
+        
+        # 实时保存设置（使用防抖机制）
+        self.schedule_save_settings()
+    
+    def schedule_save_settings(self):
+        """调度保存设置（防抖机制）"""
+        # 取消之前的定时器
+        if self.save_timer:
+            self.after_cancel(self.save_timer)
+        
+        # 设置新的定时器
+        self.save_timer = self.after(self.save_delay, self.save_current_settings)
+    
+    def save_current_settings(self):
+        """保存当前设置"""
+        try:
+            # 获取当前水印设置
+            current_watermark_settings = self.get_settings()
+            
+            if current_watermark_settings:
+                # 将水印设置包装成完整的设置格式
+                session_data = {
+                    'watermark_settings': current_watermark_settings
+                }
+                
+                # 保存到last_session.json
+                if hasattr(self.app, 'settings'):
+                    self.app.settings.save_current(session_data)
+                    
+        except Exception as e:
+            print(f"自动保存设置失败: {e}")
+        finally:
+            # 清除定时器引用
+            self.save_timer = None
     
     def on_shadow_toggle(self):
         """阴影启用/禁用切换"""
