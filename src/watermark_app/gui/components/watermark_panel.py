@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional, Callable
 
 from ...core import WatermarkPosition, WatermarkType
 from ...utils import show_error, color_to_hex, hex_to_color
+from ...utils.helpers import is_windows, is_macos, is_linux
 
 
 class WatermarkPanel(ttk.LabelFrame):
@@ -25,7 +26,7 @@ class WatermarkPanel(ttk.LabelFrame):
         self.watermark_type = tk.StringVar(value="text")
         self.text_content = tk.StringVar(value="水印")
         self.font_size = tk.IntVar(value=36)
-        self.font_family = tk.StringVar(value="苹方 (PingFang SC)")  # 默认中文字体
+        self.font_family = tk.StringVar(value="系统默认")  # 默认字体，稍后会被平台相关字体覆盖
         self.font_bold = tk.BooleanVar(value=False)  # 粗体选项
         self.font_italic = tk.BooleanVar(value=False)  # 斜体选项
         self.text_color = tk.StringVar(value="#FFFFFF")
@@ -54,6 +55,10 @@ class WatermarkPanel(ttk.LabelFrame):
         self.watermark_manager = WatermarkManager()
         self.available_fonts = self.watermark_manager.get_available_fonts()
         
+        # 设置平台相关的默认字体
+        default_font = self.get_platform_default_font()
+        self.font_family.set(default_font)
+        
         # 保存设置的防抖机制
         self.save_timer = None
         self.save_delay = 1000  # 1秒延迟
@@ -63,6 +68,31 @@ class WatermarkPanel(ttk.LabelFrame):
         
         self.setup_ui()
         self.setup_bindings()
+    
+    def get_platform_default_font(self) -> str:
+        """获取当前平台的默认字体"""
+        if not self.available_fonts:
+            return "系统默认"
+        
+        # 根据平台返回合适的默认字体
+        if is_windows():
+            # Windows平台优先选择中文字体
+            preferred_fonts = ["Microsoft YaHei", "微软雅黑", "SimHei", "黑体", "SimSun", "宋体"]
+        elif is_macos():
+            # macOS平台优先选择中文字体
+            preferred_fonts = ["STHeiti", "华文黑体", "Hiragino Sans GB", "冬青黑体", "PingFang SC", "苹方"]
+        else:
+            # Linux平台优先选择中文字体
+            preferred_fonts = ["Noto Sans CJK SC", "WenQuanYi Micro Hei", "文泉驿微米黑", "DejaVu Sans"]
+        
+        # 查找第一个可用的字体
+        for font_name in preferred_fonts:
+            for available_font in self.available_fonts.keys():
+                if font_name in available_font or available_font in font_name:
+                    return available_font
+        
+        # 如果没有找到匹配的字体，返回第一个可用字体
+        return list(self.available_fonts.keys())[0] if self.available_fonts else "系统默认"
     
     def setup_ui(self):
         """设置用户界面"""
@@ -783,7 +813,7 @@ class WatermarkPanel(ttk.LabelFrame):
         self.watermark_type.set(settings.get('type', 'text'))
         self.text_content.set(settings.get('text', '水印'))
         self.font_size.set(settings.get('font_size', 36))
-        self.font_family.set(settings.get('font_family', '苹方 (PingFang SC)'))
+        self.font_family.set(settings.get('font_family', self.get_platform_default_font()))
         self.font_bold.set(settings.get('font_bold', False))
         self.font_italic.set(settings.get('font_italic', False))
         self.text_color.set(settings.get('color', '#FFFFFF'))
@@ -824,6 +854,7 @@ class WatermarkPanel(ttk.LabelFrame):
                 'type': 'text',
                 'text': '水印',
                 'font_size': 36,
+                'font_family': self.get_platform_default_font(),
                 'font_bold': False,
                 'font_italic': False,
                 'color': '#FFFFFF',
