@@ -85,7 +85,7 @@
 ### 系统要求
 - **主要支持**：macOS 12.0+ (已在 macOS 15.7 上测试)
 - **硬件架构**：Apple Silicon (M1/M2/M3) 优先，Intel x86_64 理论支持
-- **Python 版本**：3.8-3.11
+- **Python 版本**：3.8+
 - **开发环境**：基于 macOS 15.7 + Apple M1 芯片开发测试
 - **其他系统**：理论上支持 Windows 和 Linux，但未经充分测试
 
@@ -98,10 +98,8 @@
 ### 依赖库
 - **GUI 框架**：Tkinter (Python 内置)
 - **图像处理**：Pillow >= 9.5.0
-- **数值计算**：NumPy >= 1.21.0
 - **配置管理**：PyYAML >= 6.0
-- **字体处理**：FontTools >= 4.40.0
-- **界面增强**：tkinter-tooltip、tkinterdnd2、tkcolorpicker
+- **拖拽支持**：tkinterdnd2 >= 0.3.0
 
 ## 📦 安装与运行
 
@@ -135,6 +133,10 @@ python main.py
 ```
 
 ### 方法二：使用 pip
+
+> 出现一下问题需要参照尾部内容处理
+> macOS xx (xxxx) or later required, have instead xx (xxxx) !
+> zsh: abort      python3 main.py
 
 1. **克隆项目**
 ```bash

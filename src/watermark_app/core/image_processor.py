@@ -7,7 +7,6 @@
 import os
 from typing import List, Tuple, Optional, Union
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
-import numpy as np
 from ..utils.logger import get_logger, get_error_handler, log_errors
 
 
