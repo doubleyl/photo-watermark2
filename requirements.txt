@@ -1,38 +1,42 @@
 # 图片水印应用依赖包
-# 适用于Python 3.8和conda环境
+# 支持 Python 3.8+ 和多平台环境 (Windows, macOS, Linux)
 
-# GUI框架
-tkinter-tooltip==2.2.0
+# GUI框架增强
+tkinter-tooltip>=2.2.0,<3.0.0
 
-# 图像处理
-Pillow==9.5.0
+# 图像处理 - 使用较新版本以获得更好的跨平台支持
+Pillow>=9.5.0,<11.0.0
 
-# 数学计算和数组处理
-numpy==1.24.3
+# 数学计算和数组处理 - 兼容多种架构
+numpy>=1.21.0,<2.0.0; python_version>="3.8"
 
 # 配置文件处理
-PyYAML==6.0
+PyYAML>=6.0,<7.0.0
 
-# 文件对话框增强
-tkinterdnd2==0.3.0
+# 拖拽支持 - 跨平台文件拖拽
+tkinterdnd2>=0.3.0,<1.0.0
 
 # 颜色选择器
-tkcolorpicker==2.1.3
+tkcolorpicker>=2.1.3,<3.0.0
 
-# 字体处理
-fonttools==4.40.0
+# 字体处理和系统字体枚举
+fonttools>=4.40.0,<5.0.0
 
-# 系统字体枚举
-matplotlib==3.7.1
+# 用于字体发现和处理，替代matplotlib的字体功能
+# matplotlib在某些环境下可能有依赖问题，我们将使用更轻量的方案
 
-# JSON配置处理（Python内置，无需安装）
-# json
+# 平台特定依赖
+# Windows 平台的额外支持
+pywin32>=227; sys_platform=="win32"
 
-# 文件路径处理（Python内置，无需安装）
-# pathlib
+# 跨平台文件系统监控（可选，用于高级功能）
+# watchdog>=2.1.0,<4.0.0
 
-# 操作系统接口（Python内置，无需安装）
-# os
-
-# 正则表达式（Python内置，无需安装）
-# re
+# 内置模块（无需安装）：
+# - tkinter (GUI框架)
+# - json (配置处理)
+# - pathlib (路径处理)
+# - os (系统接口)
+# - platform (平台检测)
+# - threading (多线程)
+# - re (正则表达式)

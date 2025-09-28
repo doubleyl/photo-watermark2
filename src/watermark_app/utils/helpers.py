@@ -54,6 +54,104 @@ def get_app_data_dir() -> str:
         return os.path.expanduser("~/.watermark_app")
 
 
+def get_system_font_dirs() -> List[str]:
+    """获取系统字体目录列表"""
+    font_dirs = []
+    
+    if is_macos():
+        font_dirs.extend([
+            "/System/Library/Fonts",
+            "/Library/Fonts",
+            os.path.expanduser("~/Library/Fonts")
+        ])
+    elif is_windows():
+        font_dirs.extend([
+            os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts'),
+            os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Microsoft', 'Windows', 'Fonts')
+        ])
+    else:  # Linux
+        font_dirs.extend([
+            "/usr/share/fonts",
+            "/usr/local/share/fonts",
+            os.path.expanduser("~/.fonts"),
+            os.path.expanduser("~/.local/share/fonts")
+        ])
+    
+    # 过滤存在的目录
+    return [d for d in font_dirs if os.path.exists(d)]
+
+
+def open_file_manager(path: str) -> bool:
+    """跨平台打开文件管理器"""
+    try:
+        if not os.path.exists(path):
+            return False
+            
+        if is_macos():
+            os.system(f"open '{path}'")
+        elif is_windows():
+            os.startfile(path)
+        else:  # Linux
+            # 尝试多种Linux文件管理器
+            for cmd in ['xdg-open', 'nautilus', 'dolphin', 'thunar', 'pcmanfm']:
+                try:
+                    os.system(f"{cmd} '{path}' 2>/dev/null &")
+                    break
+                except:
+                    continue
+        return True
+    except Exception as e:
+        print(f"打开文件管理器失败: {e}")
+        return False
+
+
+def get_default_fonts() -> List[str]:
+    """获取系统默认字体列表"""
+    fonts = []
+    
+    if is_macos():
+        fonts.extend([
+            "PingFang SC",  # 苹方
+            "Hiragino Sans GB",  # 冬青黑体
+            "STHeiti",  # 华文黑体
+            "Arial Unicode MS",
+            "Helvetica",
+            "Arial"
+        ])
+    elif is_windows():
+        fonts.extend([
+            "Microsoft YaHei",  # 微软雅黑
+            "SimHei",  # 黑体
+            "SimSun",  # 宋体
+            "Arial Unicode MS",
+            "Arial",
+            "Calibri"
+        ])
+    else:  # Linux
+        fonts.extend([
+            "Noto Sans CJK SC",  # 思源黑体
+            "WenQuanYi Micro Hei",  # 文泉驿微米黑
+            "DejaVu Sans",
+            "Liberation Sans",
+            "Arial",
+            "Helvetica"
+        ])
+    
+    return fonts
+
+
+def is_arm_architecture() -> bool:
+    """检查是否为ARM架构（如Apple M1/M2）"""
+    machine = platform.machine().lower()
+    return machine in ['arm64', 'aarch64', 'armv7l', 'armv8']
+
+
+def get_python_architecture() -> str:
+    """获取Python架构信息"""
+    import struct
+    return f"{platform.machine()}-{struct.calcsize('P') * 8}bit"
+
+
 def ensure_dir_exists(dir_path: str) -> bool:
     """确保目录存在"""
     try:

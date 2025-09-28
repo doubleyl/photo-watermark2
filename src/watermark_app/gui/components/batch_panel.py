@@ -333,11 +333,11 @@ class BatchPanel(ttk.LabelFrame):
             
     def open_output_folder(self):
         """打开输出文件夹"""
+        from ...utils import open_file_manager
+        
         output_dir = self.output_folder.get()
-        if os.path.exists(output_dir):
-            os.system(f"open '{output_dir}'")  # macOS
-        else:
-            messagebox.showwarning("警告", "输出文件夹不存在")
+        if not open_file_manager(output_dir):
+            messagebox.showwarning("警告", "无法打开输出文件夹，请检查路径是否存在")
     
     def setup_drag_drop(self):
         """设置拖拽支持"""

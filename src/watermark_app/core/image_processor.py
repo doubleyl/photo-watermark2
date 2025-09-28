@@ -8,6 +8,7 @@ import os
 from typing import List, Tuple, Optional, Union
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 import numpy as np
+from ..utils.logger import get_logger, get_error_handler, log_errors
 
 
 class ImageProcessor:
@@ -22,15 +23,20 @@ class ImageProcessor:
         """初始化图片处理器"""
         self.current_image = None
         self.original_image = None
+        self.logger = get_logger("image_processor")
+        self.error_handler = get_error_handler()
     
     def is_supported_format(self, file_path: str) -> bool:
         """检查文件格式是否支持"""
         ext = os.path.splitext(file_path)[1].lower()
         return ext in self.SUPPORTED_FORMATS
     
+    @log_errors
     def load_image(self, file_path: str) -> bool:
         """加载图片文件"""
         try:
+            self.logger.info(f"开始加载图片: {file_path}")
+            
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"文件不存在: {file_path}")
             
@@ -41,10 +47,11 @@ class ImageProcessor:
             self.original_image = Image.open(file_path)
             self.current_image = self.original_image.copy()
             
+            self.logger.info(f"成功加载图片: {file_path}, 尺寸: {self.original_image.size}")
             return True
             
         except Exception as e:
-            print(f"加载图片失败 {file_path}: {e}")
+            self.error_handler.handle_image_error(file_path, "加载", e)
             return False
     
     def get_image_info(self, file_path: str) -> Optional[dict]:
@@ -237,10 +244,13 @@ class ImageProcessor:
         
         return preview_img
     
+    @log_errors
     def save_image(self, img: Image.Image, output_path: str, 
                   format_type: str = None, quality: int = 95, **kwargs) -> bool:
         """保存图片"""
         try:
+            self.logger.info(f"开始保存图片: {output_path}")
+            
             # 确定输出格式
             if format_type is None:
                 ext = os.path.splitext(output_path)[1].lower()
@@ -254,6 +264,8 @@ class ImageProcessor:
                     format_type = 'TIFF'
                 else:
                     format_type = 'PNG'  # 默认格式
+            
+            self.logger.debug(f"使用格式: {format_type}, 质量: {quality}")
             
             # 转换图片格式
             save_img = self.convert_format(img, format_type)
@@ -271,12 +283,14 @@ class ImageProcessor:
             output_dir = os.path.dirname(output_path)
             if output_dir and not os.path.exists(output_dir):
                 os.makedirs(output_dir)
+                self.logger.debug(f"创建输出目录: {output_dir}")
             
             # 保存图片
             save_img.save(output_path, format=format_type, **save_kwargs)
             
+            self.logger.info(f"成功保存图片: {output_path}")
             return True
             
         except Exception as e:
-            print(f"保存图片失败 {output_path}: {e}")
+            self.error_handler.handle_file_error(output_path, "保存图片", e)
             return False

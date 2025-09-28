@@ -9,6 +9,8 @@ import math
 from typing import Tuple, Optional, Union, Dict, Any, List
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 from enum import Enum
+from ..utils.font_manager import get_font_manager
+from ..utils.logger import get_logger, get_error_handler, log_errors
 
 
 class WatermarkPosition(Enum):
@@ -37,10 +39,13 @@ class WatermarkManager:
     def __init__(self):
         """初始化水印管理器"""
         self.default_font_size = 24
-        self.default_color = (255, 255, 255, 128)  # 白色半透明
+        self.default_color = (255, 255, 255, 255)  # 白色，完全不透明
         self.default_position = WatermarkPosition.BOTTOM_RIGHT
+        self.logger = get_logger("watermark_manager")
+        self.error_handler = get_error_handler()
         self.margin = 20  # 边距
     
+    @log_errors
     def apply_text_watermark(self, img: Image.Image, text: str, 
                            font_size: int = None, color: Tuple[int, int, int, int] = None,
                            position: WatermarkPosition = None, 
@@ -54,7 +59,11 @@ class WatermarkManager:
                            stroke_color: str = "#000000") -> Image.Image:
         """应用文本水印"""
         if not text.strip():
+            self.logger.warning("文本水印为空，返回原图")
             return img.copy()
+        
+        self.logger.info(f"开始应用文本水印: '{text}', 字体大小: {font_size}, 位置: {position}")
+        self.logger.debug(f"水印参数 - 透明度: {opacity}, 旋转: {rotation}, 阴影: {shadow_enabled}")
         
         # 使用默认值
         font_size = font_size or self.default_font_size
@@ -101,11 +110,20 @@ class WatermarkManager:
             if font_path and os.path.exists(font_path):
                 font = ImageFont.truetype(font_path, font_size)
             else:
-                # 获取支持中文的字体
-                font = self._get_chinese_font(font_size, font_bold, font_italic)
+                # 使用字体管理器获取支持中文的字体
+                font = get_font_manager().get_font(
+                    size=font_size, 
+                    bold=font_bold, 
+                    italic=font_italic
+                )
         except Exception as e:
             print(f"加载字体失败: {e}")
-            font = self._get_chinese_font(font_size, font_bold, font_italic)
+            # 使用字体管理器的默认字体
+            font = get_font_manager().get_font(
+                size=font_size, 
+                bold=font_bold, 
+                italic=font_italic
+            )
         
         # 获取文本尺寸
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -544,94 +562,19 @@ class WatermarkManager:
     
     def _get_chinese_font(self, font_size: int, bold: bool = False, italic: bool = False) -> ImageFont.FreeTypeFont:
         """获取支持中文的字体"""
-        # macOS 中文字体优先级列表，根据样式选择不同的字体文件
-        if bold and italic:
-            # 粗斜体字体
-            chinese_fonts = [
-                "/System/Library/Fonts/PingFang.ttc",  # 苹方字体（会自动处理样式）
-                "/System/Library/Fonts/STHeiti Medium.ttc",  # 华文黑体中等
-                "/System/Library/Fonts/Hiragino Sans GB.ttc",  # 冬青黑体
-                "/System/Library/Fonts/Arial Unicode MS.ttf",  # Arial Unicode MS
-                "/System/Library/Fonts/Helvetica.ttc",  # Helvetica
-                "/System/Library/Fonts/Arial.ttf",  # Arial
-            ]
-        elif bold:
-            # 粗体字体
-            chinese_fonts = [
-                "/System/Library/Fonts/PingFang.ttc",  # 苹方字体
-                "/System/Library/Fonts/STHeiti Medium.ttc",  # 华文黑体中等
-                "/System/Library/Fonts/Hiragino Sans GB.ttc",  # 冬青黑体
-                "/System/Library/Fonts/Arial Unicode MS.ttf",  # Arial Unicode MS
-                "/System/Library/Fonts/Helvetica.ttc",  # Helvetica
-                "/System/Library/Fonts/Arial.ttf",  # Arial
-            ]
-        elif italic:
-            # 斜体字体
-            chinese_fonts = [
-                "/System/Library/Fonts/PingFang.ttc",  # 苹方字体
-                "/System/Library/Fonts/STHeiti Light.ttc",  # 华文黑体
-                "/System/Library/Fonts/Hiragino Sans GB.ttc",  # 冬青黑体
-                "/System/Library/Fonts/Arial Unicode MS.ttf",  # Arial Unicode MS
-                "/System/Library/Fonts/Helvetica.ttc",  # Helvetica
-                "/System/Library/Fonts/Arial.ttf",  # Arial
-            ]
-        else:
-            # 常规字体
-            chinese_fonts = [
-                "/System/Library/Fonts/PingFang.ttc",  # 苹方字体
-                "/System/Library/Fonts/STHeiti Light.ttc",  # 华文黑体
-                "/System/Library/Fonts/STHeiti Medium.ttc",
-                "/System/Library/Fonts/Hiragino Sans GB.ttc",  # 冬青黑体
-                "/System/Library/Fonts/Arial Unicode MS.ttf",  # Arial Unicode MS
-                "/System/Library/Fonts/Helvetica.ttc",  # Helvetica
-                "/System/Library/Fonts/Arial.ttf",  # Arial
-            ]
+        from ..utils.font_manager import get_font_manager
         
-        # 尝试加载中文字体
-        for font_path in chinese_fonts:
-            try:
-                if os.path.exists(font_path):
-                    font = ImageFont.truetype(font_path, font_size)
-                    # 注意：PIL的ImageFont不直接支持粗体/斜体样式
-                    # 这里主要是选择不同的字体文件，实际的粗体/斜体效果
-                    # 可能需要在绘制时通过其他方式实现
-                    return font
-            except Exception:
-                continue
+        font_manager = get_font_manager()
         
-        # 如果都失败了，使用PIL默认字体
-        try:
-            return ImageFont.load_default()
-        except Exception:
-            # 最后的备选方案
-            return ImageFont.load_default()
+        # 尝试获取默认中文字体
+        return font_manager.get_font(None, font_size, bold, italic)
     
     def get_available_fonts(self) -> Dict[str, str]:
         """获取可用字体列表，返回字体名称和路径的字典"""
-        fonts = {}
+        from ..utils.font_manager import get_font_manager
         
-        # 预定义的常用字体（中文友好）
-        predefined_fonts = {
-            "苹方 (PingFang SC)": "/System/Library/Fonts/PingFang.ttc",
-            "华文黑体 (STHeiti)": "/System/Library/Fonts/STHeiti Light.ttc",
-            "冬青黑体 (Hiragino Sans GB)": "/System/Library/Fonts/Hiragino Sans GB.ttc",
-            "Arial Unicode MS": "/System/Library/Fonts/Arial Unicode MS.ttf",
-            "Helvetica": "/System/Library/Fonts/Helvetica.ttc",
-            "Arial": "/System/Library/Fonts/Arial.ttf",
-            "Times New Roman": "/System/Library/Fonts/Times New Roman.ttf",
-            "Courier New": "/System/Library/Fonts/Courier New.ttf"
-        }
-        
-        # 检查预定义字体是否存在
-        for name, path in predefined_fonts.items():
-            if os.path.exists(path):
-                fonts[name] = path
-        
-        # 如果没有找到任何字体，添加默认选项
-        if not fonts:
-            fonts["系统默认"] = "default"
-            
-        return fonts
+        font_manager = get_font_manager()
+        return font_manager.get_available_fonts()
     
     def preview_watermark(self, img: Image.Image, config: Dict[str, Any], 
                          preview_size: Tuple[int, int] = (400, 300)) -> Image.Image:
